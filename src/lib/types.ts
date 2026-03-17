@@ -4,6 +4,7 @@ export interface Profile {
   name: string;
   role: 'admin' | 'editor';
   status: 'active' | 'inactive';
+  created_at?: string;
 }
 
 export interface Task {

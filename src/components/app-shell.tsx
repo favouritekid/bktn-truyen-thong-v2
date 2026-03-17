@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ProfileProvider } from './profile-context';
@@ -12,10 +13,21 @@ const NAV_ITEMS = [
   { href: '/calendar', label: 'Lịch', icon: '📅' },
 ];
 
+const ADMIN_NAV_ITEMS = [
+  { href: '/users', label: 'Nhân viên', icon: '👥' },
+];
+
 export default function AppShell({ profile, children }: { profile: Profile; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+
+  const navItems = useMemo(() => {
+    if (profile.role === 'admin') {
+      return [...NAV_ITEMS, ...ADMIN_NAV_ITEMS];
+    }
+    return NAV_ITEMS;
+  }, [profile.role]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -43,7 +55,7 @@ export default function AppShell({ profile, children }: { profile: Profile; chil
         </header>
 
         <nav className="bg-white border-b border-gray-200 px-6 flex gap-1">
-          {NAV_ITEMS.map(item => (
+          {navItems.map(item => (
             <button
               key={item.href}
               onClick={() => router.push(item.href)}
