@@ -94,6 +94,7 @@ export default function UsersPage() {
       const res = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           email: formEmail.trim(),
           password: formPassword,
@@ -127,6 +128,7 @@ export default function UsersPage() {
       const res = await fetch(`/api/users/${editingUser.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           name: formName.trim(),
           role: formRole,
@@ -156,6 +158,7 @@ export default function UsersPage() {
       const res = await fetch(`/api/users/${user.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ status: newStatus }),
       });
 
@@ -186,6 +189,7 @@ export default function UsersPage() {
       const res = await fetch(`/api/users/${editingUser.id}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ password: newPassword }),
       });
 
