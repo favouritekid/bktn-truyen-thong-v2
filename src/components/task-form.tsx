@@ -1,0 +1,387 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { CHANNELS, CONTENT_TYPES, PRIORITIES, LOCKED_STATUSES } from '@/lib/constants';
+import { generateTaskId } from '@/lib/utils';
+import { useProfile } from './profile-context';
+import { useToast } from './ui/toast';
+import type { Profile, Task } from '@/lib/types';
+
+interface TaskFormProps {
+  task: Task | null; // null = create mode
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
+  const profile = useProfile();
+  const { show } = useToast();
+  const isAdmin = profile.role === 'admin';
+  const isEditing = !!task;
+
+  // Lock fields when status is in certain states
+  const fieldsLocked = isEditing && LOCKED_STATUSES.includes(task.status as typeof LOCKED_STATUSES[number]);
+
+  const [title, setTitle] = useState('');
+  const [channel, setChannel] = useState<string>(CHANNELS[0]);
+  const [contentType, setContentType] = useState<string>(CONTENT_TYPES[0]);
+  const [priority, setPriority] = useState<string>(PRIORITIES[1]);
+  const [deadline, setDeadline] = useState('');
+  const [description, setDescription] = useState('');
+  const [adminNote, setAdminNote] = useState('');
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [allEditors, setAllEditors] = useState<Profile[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  // Load editors for assignee selection
+  useEffect(() => {
+    async function loadEditors() {
+      const supabase = createClient();
+      let query = supabase
+        .from('profiles')
+        .select('*')
+        .eq('status', 'active');
+
+      // Editors can only see other editors; admin sees all
+      if (!isAdmin) {
+        query = query.eq('role', 'editor');
+      }
+
+      const { data } = await query.order('name');
+      setAllEditors(data as Profile[] || []);
+    }
+    loadEditors();
+  }, [isAdmin]);
+
+  // Populate form when editing
+  useEffect(() => {
+    if (task) {
+      setTitle(task.title || '');
+      setChannel(task.channel || CHANNELS[0]);
+      setContentType(task.content_type || CONTENT_TYPES[0]);
+      setPriority(task.priority || PRIORITIES[1]);
+      setDeadline(task.deadline ? task.deadline.split('T')[0] : '');
+      setDescription(task.description || '');
+      setAdminNote(task.admin_note || '');
+      setSelectedAssignees(task.assignees?.map(a => a.id) || []);
+    }
+  }, [task]);
+
+  const toggleAssignee = useCallback((id: string) => {
+    if (fieldsLocked) return;
+    setSelectedAssignees(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  }, [fieldsLocked]);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!title.trim()) { show('Vui lòng nhập tiêu đề.', 'error'); return; }
+    if (!channel) { show('Vui lòng chọn kênh.', 'error'); return; }
+    if (!deadline) { show('Vui lòng chọn deadline.', 'error'); return; }
+    if (selectedAssignees.length === 0) { show('Vui lòng chọn ít nhất một người phụ trách.', 'error'); return; }
+
+    setSaving(true);
+    const supabase = createClient();
+
+    if (isEditing) {
+      // Update task
+      const updates: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+
+      // Only update non-locked fields, or all if not locked
+      if (!fieldsLocked) {
+        updates.title = title.trim();
+        updates.channel = channel;
+        updates.content_type = contentType;
+        updates.priority = priority;
+        updates.deadline = deadline;
+        updates.description = description;
+      }
+
+      // Admin note is always editable by admin
+      if (isAdmin) {
+        updates.admin_note = adminNote;
+      }
+
+      const { error } = await supabase
+        .from('tasks')
+        .update(updates)
+        .eq('id', task.id);
+
+      if (error) {
+        show('Lỗi cập nhật: ' + error.message, 'error');
+        setSaving(false);
+        return;
+      }
+
+      // Update assignees (only if not locked)
+      if (!fieldsLocked) {
+        // Remove old
+        await supabase
+          .from('task_assignees')
+          .delete()
+          .eq('task_id', task.id);
+
+        // Insert new
+        if (selectedAssignees.length > 0) {
+          await supabase
+            .from('task_assignees')
+            .insert(selectedAssignees.map(uid => ({ task_id: task.id, user_id: uid })));
+        }
+      }
+
+      // Log
+      await supabase.from('activity_logs').insert({
+        user_id: profile.id,
+        action: 'edit_task',
+        detail: `Cập nhật task: ${title}`,
+        task_id: task.id,
+      });
+
+      show('Đã cập nhật task.', 'success');
+    } else {
+      // Create new task
+      const newId = generateTaskId();
+
+      const { error } = await supabase
+        .from('tasks')
+        .insert({
+          id: newId,
+          title: title.trim(),
+          channel,
+          content_type: contentType,
+          priority,
+          deadline,
+          description,
+          admin_note: isAdmin ? adminNote : '',
+          status: 'Bản nháp',
+          created_by: profile.id,
+        });
+
+      if (error) {
+        show('Lỗi tạo task: ' + error.message, 'error');
+        setSaving(false);
+        return;
+      }
+
+      // Insert assignees
+      if (selectedAssignees.length > 0) {
+        await supabase
+          .from('task_assignees')
+          .insert(selectedAssignees.map(uid => ({ task_id: newId, user_id: uid })));
+      }
+
+      // Log
+      await supabase.from('activity_logs').insert({
+        user_id: profile.id,
+        action: 'create_task',
+        detail: `Tạo task mới: ${title}`,
+        task_id: newId,
+      });
+
+      show('Đã tạo task mới.', 'success');
+    }
+
+    setSaving(false);
+    onSaved();
+    onClose();
+  }, [title, channel, contentType, priority, deadline, description, adminNote, selectedAssignees, isEditing, fieldsLocked, isAdmin, task, profile.id, show, onSaved, onClose]);
+
+  return (
+    <>
+      {/* Overlay */}
+      <div className="fixed inset-0 bg-black/40 z-[80]" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900">
+              {isEditing ? 'Chỉnh sửa Task' : 'Tạo Task mới'}
+            </h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">
+              &times;
+            </button>
+          </div>
+
+          {/* Form body */}
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            {/* Title */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tiêu đề <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                disabled={fieldsLocked}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                placeholder="Nhập tiêu đề..."
+              />
+            </div>
+
+            {/* Channel + Content Type row */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Kênh <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={channel}
+                  onChange={e => setChannel(e.target.value)}
+                  disabled={fieldsLocked}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                >
+                  {CHANNELS.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Loại nội dung
+                </label>
+                <select
+                  value={contentType}
+                  onChange={e => setContentType(e.target.value)}
+                  disabled={fieldsLocked}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                >
+                  {CONTENT_TYPES.map(ct => (
+                    <option key={ct} value={ct}>{ct}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Priority + Deadline row */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mức ưu tiên</label>
+                <select
+                  value={priority}
+                  onChange={e => setPriority(e.target.value)}
+                  disabled={fieldsLocked}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                >
+                  {PRIORITIES.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Deadline <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={deadline}
+                  onChange={e => setDeadline(e.target.value)}
+                  disabled={fieldsLocked}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                />
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả / Nội dung</label>
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                disabled={fieldsLocked}
+                rows={4}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                placeholder="Mô tả chi tiết nội dung cần thực hiện..."
+              />
+            </div>
+
+            {/* Assignees */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Người phụ trách <span className="text-red-500">*</span>
+              </label>
+              <div className="border border-gray-300 rounded-lg p-2 max-h-40 overflow-y-auto space-y-1">
+                {allEditors.length === 0 ? (
+                  <p className="text-sm text-gray-400 italic px-1">Đang tải...</p>
+                ) : (
+                  allEditors.map(editor => (
+                    <label
+                      key={editor.id}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-blue-50 transition-colors ${
+                        selectedAssignees.includes(editor.id) ? 'bg-blue-50' : ''
+                      } ${fieldsLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedAssignees.includes(editor.id)}
+                        onChange={() => toggleAssignee(editor.id)}
+                        disabled={fieldsLocked}
+                        className="accent-blue-600"
+                      />
+                      <span className="text-sm">{editor.name}</span>
+                      <span className="text-[10px] text-gray-400 ml-auto">{editor.role === 'admin' ? 'Admin' : 'NV'}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+              {selectedAssignees.length > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Đã chọn: {selectedAssignees.length} người
+                </p>
+              )}
+            </div>
+
+            {/* Admin Note */}
+            {(isAdmin || (isEditing && task?.admin_note)) && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ghi chú Admin
+                  {!isAdmin && <span className="text-xs text-gray-400 ml-1">(chỉ đọc)</span>}
+                </label>
+                {isAdmin ? (
+                  <textarea
+                    value={adminNote}
+                    onChange={e => setAdminNote(e.target.value)}
+                    rows={2}
+                    className="w-full border border-amber-300 bg-amber-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    placeholder="Ghi chú cho nhân viên..."
+                  />
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 whitespace-pre-wrap">
+                    {task?.admin_note}
+                  </div>
+                )}
+              </div>
+            )}
+          </form>
+
+          {/* Footer */}
+          <div className="px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              onClick={handleSubmit}
+              disabled={saving}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Đang lưu...' : isEditing ? 'Cập nhật' : 'Tạo Task'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
