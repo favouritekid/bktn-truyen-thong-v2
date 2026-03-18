@@ -37,7 +37,7 @@ export default function TaskComments({ taskId, onRefresh }: TaskCommentsProps) {
     const supabase = createClient();
     const { data, error } = await supabase
       .from('task_comments')
-      .select('*, user:profiles!task_comments_user_id_fkey(*)')
+      .select('*, user:profiles!task_comments_user_id_profiles_fkey(id, email, full_name, role)')
       .eq('task_id', taskId)
       .order('created_at', { ascending: true });
 
