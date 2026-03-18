@@ -4,16 +4,29 @@ import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
-import type { Task, LinkLabel } from '@/lib/types';
+import type { Task, TaskLink, LinkLabel } from '@/lib/types';
 
 interface TaskLinksProps {
   task: Task;
   onRefresh: () => void;
 }
 
+interface RawLink {
+  id: string;
+  task_id: string;
+  url: string;
+  label_id: string | null;
+  note: string;
+  created_by: string;
+  created_at: string;
+  link_label: LinkLabel | LinkLabel[] | null;
+}
+
 export default function TaskLinks({ task, onRefresh }: TaskLinksProps) {
   const profile = useProfile();
   const { show } = useToast();
+  const [links, setLinks] = useState<TaskLink[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
@@ -25,7 +38,44 @@ export default function TaskLinks({ task, onRefresh }: TaskLinksProps) {
   const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
   const canEdit = isAdmin || isAssignee;
 
-  const links = task.links || [];
+  const fetchLinks = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('task_links')
+      .select('*, link_label:link_labels(*)')
+      .eq('task_id', task.id)
+      .order('created_at');
+    const mapped = ((data as unknown as RawLink[]) || []).map(l => {
+      const label = Array.isArray(l.link_label) ? l.link_label[0] : l.link_label;
+      return { ...l, link_label: label ?? undefined } as TaskLink;
+    });
+    setLinks(mapped);
+    setLoading(false);
+  }, [task.id]);
+
+  useEffect(() => {
+    fetchLinks();
+  }, [fetchLinks]);
+
+  // Realtime
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`links-${task.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'task_links',
+        filter: `task_id=eq.${task.id}`,
+      }, () => {
+        fetchLinks();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [task.id, fetchLinks]);
 
   useEffect(() => {
     async function loadLabels() {
@@ -101,6 +151,8 @@ export default function TaskLinks({ task, onRefresh }: TaskLinksProps) {
     for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
     return colors[Math.abs(hash) % colors.length];
   };
+
+  if (loading) return null;
 
   return (
     <div>

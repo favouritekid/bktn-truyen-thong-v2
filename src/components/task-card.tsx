@@ -71,20 +71,13 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
         </p>
       )}
 
-      {/* Bottom row: checklist + results + status */}
+      {/* Bottom row: results + status */}
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-        <div className="flex items-center gap-1.5">
-          {(task.checklists?.length ?? 0) > 0 && (
-            <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-              {task.checklists!.filter(c => c.is_checked).length}/{task.checklists!.length} &#10003;
-            </span>
-          )}
-          {resultCount > 0 && (
-            <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-              {resultCount} kết quả
-            </span>
-          )}
-        </div>
+        {resultCount > 0 && (
+          <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+            {resultCount} kết quả
+          </span>
+        )}
         <span
           className="text-[10px] font-bold text-white px-2 py-0.5 rounded-full ml-auto"
           style={{ backgroundColor: statusColor }}

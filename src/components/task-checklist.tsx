@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
-import type { Task } from '@/lib/types';
+import type { Task, TaskChecklist as TaskChecklistItem } from '@/lib/types';
 
 interface TaskChecklistProps {
   task: Task;
@@ -14,6 +14,8 @@ interface TaskChecklistProps {
 export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
   const profile = useProfile();
   const { show } = useToast();
+  const [items, setItems] = useState<TaskChecklistItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState('');
   const [adding, setAdding] = useState(false);
 
@@ -21,7 +23,41 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
   const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
   const canEdit = isAdmin || isAssignee;
 
-  const items = task.checklists || [];
+  const fetchItems = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('task_checklists')
+      .select('*')
+      .eq('task_id', task.id)
+      .order('sort_order');
+    setItems((data as TaskChecklistItem[]) || []);
+    setLoading(false);
+  }, [task.id]);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  // Realtime
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`checklists-${task.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'task_checklists',
+        filter: `task_id=eq.${task.id}`,
+      }, () => {
+        fetchItems();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [task.id, fetchItems]);
+
   const checkedCount = items.filter(i => i.is_checked).length;
   const totalCount = items.length;
   const progressPct = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
@@ -95,6 +131,8 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
       handleAdd();
     }
   }, [handleAdd]);
+
+  if (loading) return null;
 
   return (
     <div>
