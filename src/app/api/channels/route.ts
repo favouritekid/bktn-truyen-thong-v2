@@ -10,7 +10,7 @@ export async function GET() {
     const adminClient = createAdminClient();
     const { data, error } = await adminClient
       .from('channels')
-      .select('*')
+      .select('id, name, description, status, created_by, updated_by, archived_at, created_at, updated_at')
       .order('created_at', { ascending: true });
 
     if (error) {

@@ -28,7 +28,7 @@ export async function PATCH(
     // Fetch current campaign
     const { data: current } = await adminClient
       .from('campaigns')
-      .select('*')
+      .select('id, code, name, description, start_at, end_at, status, notes, created_by, updated_by, archived_at, status_before_archive, created_at, updated_at')
       .eq('id', id)
       .single();
 

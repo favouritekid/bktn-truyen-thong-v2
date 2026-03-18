@@ -10,7 +10,7 @@ export async function GET() {
     const adminClient = createAdminClient();
     const { data, error } = await adminClient
       .from('link_labels')
-      .select('*')
+      .select('id, name, is_active, created_by, updated_by, created_at, updated_at')
       .order('created_at', { ascending: true });
 
     if (error) {
