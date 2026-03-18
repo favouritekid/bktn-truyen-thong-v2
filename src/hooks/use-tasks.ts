@@ -47,7 +47,7 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         task_assignees!left(profiles!inner(*)),
         task_results!left(*),
         task_checklists!left(*),
-        task_links!left(*, link_label:link_labels!left(*)),
+        task_links!left(*, link_label:link_labels(*)),
         creator:profiles!tasks_created_by_fkey(*)
       `)
       .order('created_at', { ascending: false });
