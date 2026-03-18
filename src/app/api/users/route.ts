@@ -53,6 +53,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Create auth user with admin client
+    // Note: DB trigger "on_auth_user_created" auto-inserts a profile row,
+    // so we only need to update it with the correct name and role afterwards.
     const adminClient = createAdminClient();
     const { data: newUser, error: authError } = await adminClient.auth.admin.createUser({
       email,
@@ -70,27 +72,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert into profiles table
+    // Update the profile created by the trigger with correct name and role
     const { data: profile, error: profileError } = await adminClient
       .from('profiles')
-      .insert({
-        id: newUser.user.id,
-        email,
-        name,
-        role,
-        status: 'active',
-      })
+      .update({ name, role })
+      .eq('id', newUser.user.id)
       .select()
       .single();
 
     if (profileError) {
-      console.error('Profile insert error:', profileError);
-      // Rollback: delete the auth user if profile creation fails
+      console.error('Profile update error:', profileError);
       await adminClient.auth.admin.deleteUser(newUser.user.id);
-      const isDuplicate = profileError.code === '23505';
       return NextResponse.json(
-        { error: isDuplicate ? 'Email này đã tồn tại trong hệ thống' : 'Lỗi tạo profile: ' + profileError.message },
-        { status: isDuplicate ? 409 : 400 }
+        { error: 'Lỗi cập nhật profile: ' + profileError.message },
+        { status: 400 }
       );
     }
 
