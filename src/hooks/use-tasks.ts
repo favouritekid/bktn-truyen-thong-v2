@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { Profile, Task, TaskResult } from '@/lib/types';
+import type { Profile, Task, TaskResult, TaskChecklist, TaskLink, LinkLabel } from '@/lib/types';
 
 interface UseTasksOptions {
   profileId: string;
@@ -27,6 +27,8 @@ interface RawTaskRow {
   updated_at: string;
   task_assignees: { profiles: Profile | Profile[] }[];
   task_results: TaskResult[];
+  task_checklists: TaskChecklist[];
+  task_links: (TaskLink & { link_label: LinkLabel | LinkLabel[] | null })[];
   creator: Profile | Profile[];
 }
 
@@ -44,6 +46,8 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         *,
         task_assignees!left(profiles!inner(*)),
         task_results!left(*),
+        task_checklists!left(*),
+        task_links!left(*, link_label:link_labels!left(*)),
         creator:profiles!tasks_created_by_fkey(*)
       `)
       .order('created_at', { ascending: false });
@@ -70,6 +74,13 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
 
       const creator = Array.isArray(row.creator) ? row.creator[0] : row.creator;
 
+      const checklists = (row.task_checklists || []).sort((a, b) => a.sort_order - b.sort_order);
+
+      const links = (row.task_links || []).map(l => {
+        const label = Array.isArray(l.link_label) ? l.link_label[0] : l.link_label;
+        return { ...l, link_label: label ?? undefined } as TaskLink;
+      });
+
       return {
         id: row.id,
         title: row.title,
@@ -86,6 +97,8 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         updated_at: row.updated_at,
         assignees,
         results: row.task_results || [],
+        checklists,
+        links,
         creator,
       } as Task;
     });
@@ -125,6 +138,15 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         fetchTasks();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_results' }, () => {
+        fetchTasks();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_checklists' }, () => {
+        fetchTasks();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_links' }, () => {
+        fetchTasks();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_comments' }, () => {
         fetchTasks();
       })
       .subscribe();

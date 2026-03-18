@@ -6,6 +6,9 @@ import { STATUS_COLORS, RESULT_TYPES } from '@/lib/constants';
 import { formatDateVN, getChannelColor, isOverdue } from '@/lib/utils';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
+import TaskChecklist from './task-checklist';
+import TaskLinks from './task-links';
+import TaskComments from './task-comments';
 import type { Task, TaskResult } from '@/lib/types';
 
 interface TaskDrawerProps {
@@ -415,6 +418,9 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
             )}
           </div>
 
+          {/* Checklist */}
+          <TaskChecklist task={task} onRefresh={onRefresh} />
+
           {/* Admin Note */}
           {(task.admin_note || isAdmin) && (
             <div>
@@ -428,6 +434,9 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
               )}
             </div>
           )}
+
+          {/* Links */}
+          <TaskLinks task={task} onRefresh={onRefresh} />
 
           {/* Results */}
           <div>
@@ -534,6 +543,9 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
               </div>
             )}
           </div>
+
+          {/* Comments */}
+          <TaskComments taskId={task.id} onRefresh={onRefresh} />
 
           {/* Timestamps */}
           <div className="text-[11px] text-gray-400 space-y-0.5 pt-2 border-t border-gray-100">

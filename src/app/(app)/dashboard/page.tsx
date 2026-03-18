@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { CHANNELS, STATUSES, STATUS_COLORS, CHANNEL_COLORS } from '@/lib/constants';
+import { STATUSES, STATUS_COLORS, CHANNEL_COLORS } from '@/lib/constants';
+import { useChannels } from '@/hooks/use-channels';
 import { formatDateVN, isOverdue, isDueSoon, isAdminOrAbove } from '@/lib/utils';
 import { useProfile } from '@/components/profile-context';
 import { useTasks } from '@/hooks/use-tasks';
@@ -11,6 +12,7 @@ import type { Task } from '@/lib/types';
 
 export default function DashboardPage() {
   const profile = useProfile();
+  const { channels: dbChannels } = useChannels();
   const { tasks, loading, refresh } = useTasks({
     profileId: profile.id,
     role: profile.role,
@@ -19,11 +21,13 @@ export default function DashboardPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [formTask, setFormTask] = useState<Task | null | undefined>(undefined);
 
+  const channelNames = dbChannels.map(c => c.name);
+
   const stats = useMemo(() => {
     const byStatus: Record<string, number> = {};
     for (const s of STATUSES) byStatus[s] = 0;
     const byChannel: Record<string, number> = {};
-    for (const c of CHANNELS) byChannel[c] = 0;
+    for (const c of channelNames) byChannel[c] = 0;
     const byAssignee: Record<string, { name: string; count: number; completed: number }> = {};
     const overdue: Task[] = [];
     const dueSoon: Task[] = [];
@@ -48,7 +52,7 @@ export default function DashboardPage() {
     }
 
     return { total: tasks.length, byStatus, byChannel, byAssignee, overdue, dueSoon };
-  }, [tasks]);
+  }, [tasks, channelNames]);
 
   // Pipeline progress
   const pipelineStatuses = STATUSES.filter(s => s !== 'Đã đăng');
@@ -206,7 +210,7 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {CHANNELS.map(ch => {
+              {channelNames.map(ch => {
                 const chTasks = tasks.filter(t => t.channel === ch);
                 if (chTasks.length === 0) return null;
                 return (

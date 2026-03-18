@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { CHANNELS, STATUSES, STATUS_COLORS } from '@/lib/constants';
+import { STATUSES, STATUS_COLORS } from '@/lib/constants';
+import { useChannels } from '@/hooks/use-channels';
 import { isAdminOrAbove } from '@/lib/utils';
 import { useProfile } from '@/components/profile-context';
 import { useTasks } from '@/hooks/use-tasks';
@@ -13,6 +14,7 @@ import type { Profile, Task } from '@/lib/types';
 
 export default function KanbanPage() {
   const profile = useProfile();
+  const { channels: dbChannels } = useChannels();
   const [channelFilter, setChannelFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [showPublished, setShowPublished] = useState(false);
@@ -92,8 +94,8 @@ export default function KanbanPage() {
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
             <option value="">Tất cả kênh</option>
-            {CHANNELS.map(c => (
-              <option key={c} value={c}>{c}</option>
+            {dbChannels.map(c => (
+              <option key={c.id} value={c.name}>{c.name}</option>
             ))}
           </select>
 

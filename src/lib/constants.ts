@@ -29,7 +29,6 @@ export const RESULT_TYPES = [
 
 export const LOCKED_STATUSES = ['Đã duyệt', 'Đang làm', 'Chờ duyệt KQ'] as const;
 
-export type Channel = typeof CHANNELS[number];
 export type TaskStatus = typeof STATUSES[number];
 export type Priority = typeof PRIORITIES[number];
 export type ContentType = typeof CONTENT_TYPES[number];

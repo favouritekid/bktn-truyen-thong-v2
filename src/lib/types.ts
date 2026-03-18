@@ -29,6 +29,41 @@ export interface Task {
   assignees?: Profile[];
   results?: TaskResult[];
   creator?: Profile;
+  checklists?: TaskChecklist[];
+  links?: TaskLink[];
+  comments?: TaskComment[];
+}
+
+export interface TaskChecklist {
+  id: string;
+  task_id: string;
+  title: string;
+  is_checked: boolean;
+  sort_order: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskLink {
+  id: string;
+  task_id: string;
+  url: string;
+  label_id: string | null;
+  note: string;
+  created_by: string;
+  created_at: string;
+  link_label?: LinkLabel;
+}
+
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user?: Profile;
 }
 
 export interface TaskResult {

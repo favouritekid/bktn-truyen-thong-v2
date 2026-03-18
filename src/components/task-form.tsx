@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { CHANNELS, CONTENT_TYPES, PRIORITIES, LOCKED_STATUSES } from '@/lib/constants';
+import { CONTENT_TYPES, PRIORITIES, LOCKED_STATUSES } from '@/lib/constants';
+import { useChannels } from '@/hooks/use-channels';
 import { generateTaskId } from '@/lib/utils';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
@@ -17,6 +18,7 @@ interface TaskFormProps {
 export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
   const profile = useProfile();
   const { show } = useToast();
+  const { channels: dbChannels } = useChannels();
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isEditing = !!task;
 
@@ -24,7 +26,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
   const fieldsLocked = isEditing && LOCKED_STATUSES.includes(task.status as typeof LOCKED_STATUSES[number]);
 
   const [title, setTitle] = useState('');
-  const [channel, setChannel] = useState<string>(CHANNELS[0]);
+  const [channel, setChannel] = useState<string>('');
   const [contentType, setContentType] = useState<string>(CONTENT_TYPES[0]);
   const [priority, setPriority] = useState<string>(PRIORITIES[1]);
   const [deadline, setDeadline] = useState('');
@@ -58,7 +60,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
   useEffect(() => {
     if (task) {
       setTitle(task.title || '');
-      setChannel(task.channel || CHANNELS[0]);
+      setChannel(task.channel || '');
       setContentType(task.content_type || CONTENT_TYPES[0]);
       setPriority(task.priority || PRIORITIES[1]);
       setDeadline(task.deadline ? task.deadline.split('T')[0] : '');
@@ -238,8 +240,9 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
                   disabled={fieldsLocked}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                 >
-                  {CHANNELS.map(c => (
-                    <option key={c} value={c}>{c}</option>
+                  <option value="">-- Chọn kênh --</option>
+                  {dbChannels.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
                   ))}
                 </select>
               </div>
