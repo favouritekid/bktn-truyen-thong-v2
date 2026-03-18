@@ -6,10 +6,10 @@ import { formatDateVN } from '@/lib/utils';
 import { ROLE_LABELS } from '@/lib/constants';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
-import type { TaskComment, Profile } from '@/lib/types';
+import type { Task, TaskComment, Profile } from '@/lib/types';
 
 interface TaskCommentsProps {
-  taskId: string;
+  task: Task;
   onRefresh: () => void;
 }
 
@@ -23,7 +23,8 @@ interface RawComment {
   user: Profile | Profile[];
 }
 
-export default function TaskComments({ taskId, onRefresh }: TaskCommentsProps) {
+export default function TaskComments({ task, onRefresh }: TaskCommentsProps) {
+  const taskId = task.id;
   const profile = useProfile();
   const { show } = useToast();
   const [comments, setComments] = useState<TaskComment[]>([]);
@@ -32,6 +33,8 @@ export default function TaskComments({ taskId, onRefresh }: TaskCommentsProps) {
   const [sending, setSending] = useState(false);
 
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
+  const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
+  const canComment = isAdmin || isAssignee;
 
   const fetchComments = useCallback(async () => {
     const supabase = createClient();
@@ -190,24 +193,28 @@ export default function TaskComments({ taskId, onRefresh }: TaskCommentsProps) {
             </div>
           )}
 
-          {/* Input */}
-          <div className="flex items-start gap-2">
-            <textarea
-              value={content}
-              onChange={e => setContent(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Nhập bình luận... (Enter để gửi, Shift+Enter xuống dòng)"
-              rows={2}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            />
-            <button
-              onClick={handleSend}
-              disabled={sending || !content.trim()}
-              className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 shrink-0"
-            >
-              Gửi
-            </button>
-          </div>
+          {/* Input - only for admin or assignee */}
+          {canComment ? (
+            <div className="flex items-start gap-2">
+              <textarea
+                value={content}
+                onChange={e => setContent(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Nhập bình luận... (Enter để gửi, Shift+Enter xuống dòng)"
+                rows={2}
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+              <button
+                onClick={handleSend}
+                disabled={sending || !content.trim()}
+                className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 shrink-0"
+              >
+                Gửi
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 italic">Chỉ người phụ trách hoặc admin mới có thể bình luận.</p>
+          )}
         </>
       )}
     </div>

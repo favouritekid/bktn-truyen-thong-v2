@@ -545,7 +545,7 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
           </div>
 
           {/* Comments */}
-          <TaskComments taskId={task.id} onRefresh={onRefresh} />
+          <TaskComments task={task} onRefresh={onRefresh} />
 
           {/* Timestamps */}
           <div className="text-[11px] text-gray-400 space-y-0.5 pt-2 border-t border-gray-100">

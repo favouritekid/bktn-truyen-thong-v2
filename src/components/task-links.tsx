@@ -36,7 +36,8 @@ export default function TaskLinks({ task, onRefresh }: TaskLinksProps) {
 
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
-  const canEdit = isAdmin || isAssignee;
+  const editableStatuses = ['Bản nháp', 'Đã duyệt', 'Đang làm'];
+  const canEdit = isAdmin || (isAssignee && editableStatuses.includes(task.status));
 
   const fetchLinks = useCallback(async () => {
     const supabase = createClient();

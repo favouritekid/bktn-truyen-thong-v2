@@ -21,7 +21,8 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
 
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
-  const canEdit = isAdmin || isAssignee;
+  const editableStatuses = ['Bản nháp', 'Đã duyệt', 'Đang làm'];
+  const canEdit = isAdmin || (isAssignee && editableStatuses.includes(task.status));
 
   const fetchItems = useCallback(async () => {
     const supabase = createClient();
