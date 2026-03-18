@@ -61,7 +61,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (authError) {
-      return NextResponse.json({ error: 'Lỗi tạo tài khoản: ' + authError.message }, { status: 400 });
+      console.error('Supabase createUser error:', authError);
+      const isDuplicate = authError.message?.toLowerCase().includes('already')
+        || authError.status === 422;
+      return NextResponse.json(
+        { error: isDuplicate ? 'Email này đã được đăng ký' : 'Lỗi tạo tài khoản: ' + authError.message },
+        { status: isDuplicate ? 409 : 400 }
+      );
     }
 
     // Insert into profiles table
@@ -78,9 +84,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (profileError) {
+      console.error('Profile insert error:', profileError);
       // Rollback: delete the auth user if profile creation fails
       await adminClient.auth.admin.deleteUser(newUser.user.id);
-      return NextResponse.json({ error: 'Lỗi tạo profile: ' + profileError.message }, { status: 400 });
+      const isDuplicate = profileError.code === '23505';
+      return NextResponse.json(
+        { error: isDuplicate ? 'Email này đã tồn tại trong hệ thống' : 'Lỗi tạo profile: ' + profileError.message },
+        { status: isDuplicate ? 409 : 400 }
+      );
     }
 
     return NextResponse.json({ user: profile }, { status: 201 });

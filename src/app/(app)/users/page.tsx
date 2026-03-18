@@ -337,94 +337,95 @@ export default function UsersPage() {
               {/* Form body */}
               <form
                 onSubmit={modalMode === 'create' ? handleCreate : handleEdit}
-                className="flex-1 overflow-y-auto px-5 py-4 space-y-4"
+                className="flex-1 overflow-y-auto flex flex-col"
               >
-                {/* Name */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Họ tên <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formName}
-                    onChange={e => setFormName(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Nhập họ tên..."
-                  />
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={formEmail}
-                    onChange={e => setFormEmail(e.target.value)}
-                    disabled={modalMode === 'edit'}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
-                    placeholder="email@example.com"
-                  />
-                  {modalMode === 'edit' && (
-                    <p className="text-xs text-gray-400 mt-1">Email không thể thay đổi</p>
-                  )}
-                </div>
-
-                {/* Password (create only) */}
-                {modalMode === 'create' && (
+                <div className="px-5 py-4 space-y-4">
+                  {/* Name */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Mật khẩu <span className="text-red-500">*</span>
+                      Họ tên <span className="text-red-500">*</span>
                     </label>
                     <input
-                      type="password"
-                      value={formPassword}
-                      onChange={e => setFormPassword(e.target.value)}
+                      type="text"
+                      value={formName}
+                      onChange={e => setFormName(e.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Tối thiểu 6 ký tự"
+                      placeholder="Nhập họ tên..."
                     />
                   </div>
-                )}
 
-                {/* Role */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Vai trò <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formRole}
-                    onChange={e => setFormRole(e.target.value as 'admin' | 'editor')}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  {/* Email */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={formEmail}
+                      onChange={e => setFormEmail(e.target.value)}
+                      disabled={modalMode === 'edit'}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                      placeholder="email@example.com"
+                    />
+                    {modalMode === 'edit' && (
+                      <p className="text-xs text-gray-400 mt-1">Email không thể thay đổi</p>
+                    )}
+                  </div>
+
+                  {/* Password (create only) */}
+                  {modalMode === 'create' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Mật khẩu <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        value={formPassword}
+                        onChange={e => setFormPassword(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Tối thiểu 6 ký tự"
+                      />
+                    </div>
+                  )}
+
+                  {/* Role */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Vai trò <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formRole}
+                      onChange={e => setFormRole(e.target.value as 'admin' | 'editor')}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="editor">Editor (Nhân viên)</option>
+                      <option value="admin">Admin (Quản trị)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-colors"
                   >
-                    <option value="editor">Editor (Nhân viên)</option>
-                    <option value="admin">Admin (Quản trị)</option>
-                  </select>
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {saving
+                      ? 'Đang lưu...'
+                      : modalMode === 'create'
+                      ? 'Tạo nhân viên'
+                      : 'Cập nhật'}
+                  </button>
                 </div>
               </form>
-
-              {/* Footer */}
-              <div className="px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-colors"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  onClick={modalMode === 'create' ? handleCreate : handleEdit}
-                  disabled={saving}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {saving
-                    ? 'Đang lưu...'
-                    : modalMode === 'create'
-                    ? 'Tạo nhân viên'
-                    : 'Cập nhật'}
-                </button>
-              </div>
             </div>
           </div>
         </>
@@ -447,42 +448,43 @@ export default function UsersPage() {
               </div>
 
               {/* Form body */}
-              <form onSubmit={handleResetPassword} className="px-5 py-4 space-y-4">
-                <p className="text-sm text-gray-600">
-                  Đặt mật khẩu mới cho <strong>{editingUser.name}</strong> ({editingUser.email})
-                </p>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mật khẩu mới <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Tối thiểu 6 ký tự"
-                  />
+              <form onSubmit={handleResetPassword} className="flex flex-col">
+                <div className="px-5 py-4 space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Đặt mật khẩu mới cho <strong>{editingUser.name}</strong> ({editingUser.email})
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Mật khẩu mới <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Tối thiểu 6 ký tự"
+                    />
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {saving ? 'Đang lưu...' : 'Đặt lại mật khẩu'}
+                  </button>
                 </div>
               </form>
-
-              {/* Footer */}
-              <div className="px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-lg transition-colors"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  onClick={handleResetPassword}
-                  disabled={saving}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {saving ? 'Đang lưu...' : 'Đặt lại mật khẩu'}
-                </button>
-              </div>
             </div>
           </div>
         </>
