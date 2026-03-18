@@ -4,3 +4,10 @@ node_modules/
 .env*.local
 out/
 scripts/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
