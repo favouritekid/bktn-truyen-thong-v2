@@ -27,7 +27,7 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
     const supabase = createClient();
     const { data } = await supabase
       .from('task_checklists')
-      .select('*')
+      .select('id, task_id, title, is_checked, sort_order, created_by, created_at, updated_at')
       .eq('task_id', task.id)
       .order('sort_order');
     setItems((data as TaskChecklistItem[]) || []);

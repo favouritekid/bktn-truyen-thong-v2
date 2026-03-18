@@ -42,7 +42,7 @@ export default function TaskLinks({ task, onRefresh }: TaskLinksProps) {
     const supabase = createClient();
     const { data } = await supabase
       .from('task_links')
-      .select('*, link_label:link_labels(*)')
+      .select('id, task_id, url, label_id, note, created_by, created_at, link_label:link_labels(id, name)')
       .eq('task_id', task.id)
       .order('created_at');
     const mapped = ((data as unknown as RawLink[]) || []).map(l => {
@@ -82,7 +82,7 @@ export default function TaskLinks({ task, onRefresh }: TaskLinksProps) {
       const supabase = createClient();
       const { data } = await supabase
         .from('link_labels')
-        .select('*')
+        .select('id, name, is_active, created_at, updated_at')
         .eq('is_active', true)
         .order('name');
       setLabels((data as LinkLabel[]) || []);

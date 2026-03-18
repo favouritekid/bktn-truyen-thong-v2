@@ -13,7 +13,7 @@ export function useChannels() {
       const supabase = createClient();
       const { data } = await supabase
         .from('channels')
-        .select('*')
+        .select('id, name, description, status, created_at, updated_at')
         .eq('status', 'active')
         .order('name');
       setChannels((data as Channel[]) || []);
