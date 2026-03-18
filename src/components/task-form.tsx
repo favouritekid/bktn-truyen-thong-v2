@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { CONTENT_TYPES, PRIORITIES, LOCKED_STATUSES } from '@/lib/constants';
-import { useChannels } from '@/hooks/use-channels';
 import { generateTaskId } from '@/lib/utils';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
-import type { Campaign, Profile, Task } from '@/lib/types';
+import type { Campaign, Channel, Profile, Task } from '@/lib/types';
 
 interface TaskFormProps {
   task: Task | null; // null = create mode
@@ -18,7 +17,6 @@ interface TaskFormProps {
 export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
   const profile = useProfile();
   const { show } = useToast();
-  const { channels: dbChannels } = useChannels();
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isEditing = !!task;
 
@@ -34,6 +32,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
   const [adminNote, setAdminNote] = useState('');
   const [campaignId, setCampaignId] = useState<string>('');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignChannels, setCampaignChannels] = useState<Channel[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [allEditors, setAllEditors] = useState<Profile[]>([]);
   const [saving, setSaving] = useState(false);
@@ -70,6 +69,35 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
       setCampaigns(data as Campaign[] || []);
     }
     loadCampaigns();
+  }, []);
+
+  // Load channels for selected campaign
+  useEffect(() => {
+    if (!campaignId) {
+      setCampaignChannels([]);
+      return;
+    }
+    async function loadCampaignChannels() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('campaign_channels')
+        .select('channel_id, channels:channels(id, name, description, status, created_at, updated_at)')
+        .eq('campaign_id', campaignId);
+
+      const channels = ((data || []) as unknown as { channel_id: string; channels: Channel | Channel[] }[])
+        .map(row => Array.isArray(row.channels) ? row.channels[0] : row.channels)
+        .filter((ch): ch is Channel => !!ch && ch.status === 'active')
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      setCampaignChannels(channels);
+    }
+    loadCampaignChannels();
+  }, [campaignId]);
+
+  // Handle campaign change - reset channel if not in new campaign's channels
+  const handleCampaignChange = useCallback((newCampaignId: string) => {
+    setCampaignId(newCampaignId);
+    setChannel(''); // Reset channel when campaign changes
   }, []);
 
   // Populate form when editing
@@ -248,6 +276,24 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
               />
             </div>
 
+            {/* Campaign */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Chiến dịch <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={campaignId}
+                onChange={e => handleCampaignChange(e.target.value)}
+                disabled={fieldsLocked}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              >
+                <option value="">-- Chọn chiến dịch --</option>
+                {campaigns.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Channel + Content Type row */}
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -257,11 +303,11 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
                 <select
                   value={channel}
                   onChange={e => setChannel(e.target.value)}
-                  disabled={fieldsLocked}
+                  disabled={fieldsLocked || !campaignId}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                 >
-                  <option value="">-- Chọn kênh --</option>
-                  {dbChannels.map(c => (
+                  <option value="">{campaignId ? (campaignChannels.length === 0 ? 'Chiến dịch chưa có kênh' : '-- Chọn kênh --') : '-- Chọn chiến dịch trước --'}</option>
+                  {campaignChannels.map(c => (
                     <option key={c.id} value={c.name}>{c.name}</option>
                   ))}
                 </select>
@@ -281,24 +327,6 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
                   ))}
                 </select>
               </div>
-            </div>
-
-            {/* Campaign */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Chiến dịch <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={campaignId}
-                onChange={e => setCampaignId(e.target.value)}
-                disabled={fieldsLocked}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-              >
-                <option value="">-- Chọn chiến dịch --</option>
-                {campaigns.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
             </div>
 
             {/* Priority + Deadline row */}
