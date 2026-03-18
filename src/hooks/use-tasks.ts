@@ -42,9 +42,9 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
       .from('tasks')
       .select(`
         *,
-        task_assignees!left(profiles!inner(*)),
+        task_assignees!left(profiles!inner(id, email, full_name, role, is_active, created_at, updated_at)),
         task_results!left(*),
-        creator:profiles!tasks_created_by_fkey(*)
+        creator:profiles!tasks_created_by_fkey(id, email, full_name, role, is_active, created_at, updated_at)
       `)
       .order('created_at', { ascending: false });
 
