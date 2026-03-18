@@ -41,9 +41,9 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
     let query = supabase
       .from('tasks')
       .select(`
-        *,
+        id, title, description, channel, content_type, status, priority, deadline, completed_at, admin_note, created_by, created_at, updated_at,
         task_assignees!left(profiles!inner(id, email, full_name, role, is_active, created_at, updated_at)),
-        task_results!left(*),
+        task_results!left(id, task_id, type, value, label, created_at, created_by),
         creator:profiles!tasks_created_by_fkey(id, email, full_name, role, is_active, created_at, updated_at)
       `)
       .order('created_at', { ascending: false });
