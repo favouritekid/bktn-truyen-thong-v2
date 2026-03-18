@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client';
 import { ProfileProvider } from './profile-context';
 import { ToastProvider, useToast } from './ui/toast';
 import PasswordInput from './ui/password-input';
+import { isAdminOrAbove } from '@/lib/utils';
+import { ROLE_LABELS } from '@/lib/constants';
 import type { Profile } from '@/lib/types';
 
 const NAV_ITEMS = [
@@ -16,6 +18,9 @@ const NAV_ITEMS = [
 
 const ADMIN_NAV_ITEMS = [
   { href: '/users', label: 'Nhân viên', icon: '👥' },
+  { href: '/campaigns', label: 'Chiến dịch', icon: '📢' },
+  { href: '/channels', label: 'Kênh', icon: '📡' },
+  { href: '/link-labels', label: 'Nhãn link', icon: '🏷️' },
 ];
 
 function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -135,11 +140,13 @@ export default function AppShell({ profile, children }: { profile: Profile; chil
   const [showChangePassword, setShowChangePassword] = useState(false);
 
   const navItems = useMemo(() => {
-    if (profile.role === 'admin') {
+    if (isAdminOrAbove(profile.role)) {
       return [...NAV_ITEMS, ...ADMIN_NAV_ITEMS];
     }
     return NAV_ITEMS;
   }, [profile.role]);
+
+  const roleLabel = ROLE_LABELS[profile.role] || profile.role.toUpperCase();
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -156,9 +163,9 @@ export default function AppShell({ profile, children }: { profile: Profile; chil
             <p className="text-xs opacity-80">Trường CĐ Bách khoa Tây Nguyên</p>
           </div>
           <div className="flex items-center gap-2 bg-white/15 px-3 py-1.5 rounded-full text-sm">
-            <span>{profile.name}</span>
+            <span>{profile.full_name}</span>
             <span className="bg-white/25 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">
-              {profile.role === 'admin' ? 'ADMIN' : 'NV'}
+              {roleLabel}
             </span>
             <button
               onClick={() => setShowChangePassword(true)}

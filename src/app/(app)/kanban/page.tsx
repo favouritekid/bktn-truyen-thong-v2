@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { CHANNELS, STATUSES, STATUS_COLORS } from '@/lib/constants';
+import { isAdminOrAbove } from '@/lib/utils';
 import { useProfile } from '@/components/profile-context';
 import { useTasks } from '@/hooks/use-tasks';
 import TaskCard from '@/components/task-card';
@@ -33,8 +34,8 @@ export default function KanbanPage() {
       const { data } = await supabase
         .from('profiles')
         .select('*')
-        .eq('status', 'active')
-        .order('name');
+        .eq('is_active', true)
+        .order('full_name');
       setAllEditors(data as Profile[] || []);
     }
     loadEditors();
@@ -97,7 +98,7 @@ export default function KanbanPage() {
           </select>
 
           {/* Assignee filter (admin only) */}
-          {profile.role === 'admin' && (
+          {isAdminOrAbove(profile.role) && (
             <select
               value={assigneeFilter}
               onChange={e => setAssigneeFilter(e.target.value)}
@@ -105,7 +106,7 @@ export default function KanbanPage() {
             >
               <option value="">Tất cả NV</option>
               {allEditors.map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
+                <option key={e.id} value={e.id}>{e.full_name}</option>
               ))}
             </select>
           )}

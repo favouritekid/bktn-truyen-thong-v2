@@ -27,7 +27,7 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
 
-  const isAdmin = profile.role === 'admin';
+  const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isEditor = profile.role === 'editor';
 
   useEffect(() => {
@@ -372,12 +372,12 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
             <div className="col-span-2">
               <span className="text-gray-400 text-xs">Người phụ trách</span>
               <p className="font-medium">
-                {task.assignees?.map(a => a.name).join(', ') || 'Chưa gán'}
+                {task.assignees?.map(a => a.full_name).join(', ') || 'Chưa gán'}
               </p>
             </div>
             <div className="col-span-2">
               <span className="text-gray-400 text-xs">Người tạo</span>
-              <p className="font-medium">{task.creator?.name || '—'}</p>
+              <p className="font-medium">{task.creator?.full_name || '—'}</p>
             </div>
           </div>
 

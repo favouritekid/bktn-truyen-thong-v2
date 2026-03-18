@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { CHANNELS, STATUSES, STATUS_COLORS, CHANNEL_COLORS } from '@/lib/constants';
-import { formatDateVN, isOverdue, isDueSoon } from '@/lib/utils';
+import { formatDateVN, isOverdue, isDueSoon, isAdminOrAbove } from '@/lib/utils';
 import { useProfile } from '@/components/profile-context';
 import { useTasks } from '@/hooks/use-tasks';
 import TaskDrawer from '@/components/task-drawer';
@@ -34,7 +34,7 @@ export default function DashboardPage() {
 
       if (t.assignees) {
         for (const a of t.assignees) {
-          if (!byAssignee[a.id]) byAssignee[a.id] = { name: a.name, count: 0, completed: 0 };
+          if (!byAssignee[a.id]) byAssignee[a.id] = { name: a.full_name, count: 0, completed: 0 };
           byAssignee[a.id].count++;
           if (t.status === 'Đã đăng') byAssignee[a.id].completed++;
         }
@@ -243,7 +243,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Team breakdown */}
-      {profile.role === 'admin' && Object.keys(stats.byAssignee).length > 0 && (
+      {isAdminOrAbove(profile.role) && Object.keys(stats.byAssignee).length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
           <h3 className="text-sm font-bold text-gray-700 mb-3">Phân bổ theo nhân viên</h3>
           <div className="overflow-x-auto">

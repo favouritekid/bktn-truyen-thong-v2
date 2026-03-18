@@ -33,3 +33,37 @@ export type Channel = typeof CHANNELS[number];
 export type TaskStatus = typeof STATUSES[number];
 export type Priority = typeof PRIORITIES[number];
 export type ContentType = typeof CONTENT_TYPES[number];
+
+// Roles
+export const ROLES = ['super_admin', 'admin', 'editor'] as const;
+
+export const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'Super Admin',
+  admin: 'Admin',
+  editor: 'Editor',
+};
+
+export const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
+  super_admin: { bg: 'bg-red-100', text: 'text-red-700' },
+  admin: { bg: 'bg-purple-100', text: 'text-purple-700' },
+  editor: { bg: 'bg-blue-100', text: 'text-blue-700' },
+};
+
+// Campaign statuses
+export const CAMPAIGN_STATUSES = ['draft', 'active', 'paused', 'ended', 'archived'] as const;
+
+export const CAMPAIGN_STATUS_LABELS: Record<string, string> = {
+  draft: 'Nháp',
+  active: 'Đang chạy',
+  paused: 'Tạm dừng',
+  ended: 'Kết thúc',
+  archived: 'Lưu trữ',
+};
+
+export const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
+  draft: '#9E9E9E',
+  active: '#2E7D32',
+  paused: '#F57F17',
+  ended: '#0288D1',
+  archived: '#757575',
+};

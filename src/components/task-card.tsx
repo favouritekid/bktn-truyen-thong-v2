@@ -14,7 +14,7 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
   const channelColor = getChannelColor(task.channel);
   const overdue = isOverdue(task.deadline) && !['Đã đăng'].includes(task.status);
   const dueSoon = isDueSoon(task.deadline) && !['Đã đăng'].includes(task.status);
-  const assigneeNames = task.assignees?.map(a => a.name).join(', ') || 'Chưa gán';
+  const assigneeNames = task.assignees?.map(a => a.full_name).join(', ') || 'Chưa gán';
   const resultCount = task.results?.length || 0;
 
   return (

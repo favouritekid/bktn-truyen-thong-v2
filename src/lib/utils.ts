@@ -44,3 +44,20 @@ export function isDueSoon(deadline: string | null, days: number = 2): boolean {
 export function cn(...classes: (string | boolean | undefined | null)[]): string {
   return classes.filter(Boolean).join(' ');
 }
+
+export function isAdminOrAbove(role: string): boolean {
+  return role === 'admin' || role === 'super_admin';
+}
+
+export function isSuperAdmin(role: string): boolean {
+  return role === 'super_admin';
+}
+
+export function generateCampaignCode(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const rand = String(Math.floor(1000 + Math.random() * 9000));
+  return `C-${y}${m}${d}-${rand}`;
+}

@@ -1,14 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
-import { createServerSupabase } from '@/lib/supabase/server';
+import { createAdminClient, verifyRole, isVerifyError, verifyErrorResponse } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
-
-function createAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
 
 // POST /api/users/[id]/reset-password - Reset password for a user
 export async function POST(
@@ -16,23 +7,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verify admin
-    const supabase = await createServerSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 });
-    }
+    const auth = await verifyRole(['super_admin', 'admin']);
+    if (isVerifyError(auth)) return verifyErrorResponse(auth);
 
-    const { data: callerProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!callerProfile || callerProfile.role !== 'admin') {
-      return NextResponse.json({ error: 'Không có quyền thực hiện' }, { status: 403 });
-    }
-
+    const callerRole = auth.profile.role;
     const { id } = await params;
     const body = await request.json();
     const { password } = body;
@@ -42,6 +20,23 @@ export async function POST(
     }
 
     const adminClient = createAdminClient();
+
+    // Check target user role for hierarchy
+    const { data: targetProfile } = await adminClient
+      .from('profiles')
+      .select('role')
+      .eq('id', id)
+      .single();
+
+    if (!targetProfile) {
+      return NextResponse.json({ error: 'Không tìm thấy nhân viên' }, { status: 404 });
+    }
+
+    // Admin can only reset editor passwords, super_admin can reset all
+    if (callerRole === 'admin' && targetProfile.role !== 'editor') {
+      return NextResponse.json({ error: 'Không có quyền đặt lại mật khẩu người dùng này' }, { status: 403 });
+    }
+
     const { error } = await adminClient.auth.admin.updateUserById(id, {
       password,
     });

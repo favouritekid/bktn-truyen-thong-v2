@@ -1,9 +1,13 @@
 export interface Profile {
   id: string;
   email: string;
-  name: string;
-  role: 'admin' | 'editor';
-  status: 'active' | 'inactive';
+  full_name: string;
+  role: 'super_admin' | 'admin' | 'editor';
+  is_active: boolean;
+  last_login_at?: string;
+  last_activity_at?: string;
+  created_by?: string;
+  updated_at?: string;
   created_at?: string;
 }
 
@@ -53,4 +57,44 @@ export interface DashboardStats {
   byAssignee: Record<string, number>;
   overdue: Task[];
   dueSoon: Task[];
+}
+
+export interface Channel {
+  id: string;
+  name: string;
+  description: string;
+  status: 'active' | 'archived';
+  created_by?: string;
+  updated_by?: string;
+  archived_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Campaign {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  start_at?: string;
+  end_at?: string;
+  status: 'draft' | 'active' | 'paused' | 'ended' | 'archived';
+  notes: string;
+  created_by?: string;
+  updated_by?: string;
+  archived_at?: string;
+  status_before_archive?: string;
+  created_at: string;
+  updated_at: string;
+  channels?: Channel[];
+}
+
+export interface LinkLabel {
+  id: string;
+  name: string;
+  is_active: boolean;
+  created_by?: string;
+  updated_by?: string;
+  created_at: string;
+  updated_at: string;
 }

@@ -6,7 +6,7 @@ import type { Profile, Task, TaskResult } from '@/lib/types';
 
 interface UseTasksOptions {
   profileId: string;
-  role: 'admin' | 'editor';
+  role: 'super_admin' | 'admin' | 'editor';
   channelFilter?: string;
   assigneeFilter?: string;
 }

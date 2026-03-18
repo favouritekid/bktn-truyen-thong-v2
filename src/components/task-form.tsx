@@ -17,7 +17,7 @@ interface TaskFormProps {
 export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
   const profile = useProfile();
   const { show } = useToast();
-  const isAdmin = profile.role === 'admin';
+  const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isEditing = !!task;
 
   // Lock fields when status is in certain states
@@ -41,14 +41,14 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
       let query = supabase
         .from('profiles')
         .select('*')
-        .eq('status', 'active');
+        .eq('is_active', true);
 
       // Editors can only see other editors; admin sees all
       if (!isAdmin) {
         query = query.eq('role', 'editor');
       }
 
-      const { data } = await query.order('name');
+      const { data } = await query.order('full_name');
       setAllEditors(data as Profile[] || []);
     }
     loadEditors();
@@ -325,8 +325,8 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
                         disabled={fieldsLocked}
                         className="accent-blue-600"
                       />
-                      <span className="text-sm">{editor.name}</span>
-                      <span className="text-[10px] text-gray-400 ml-auto">{editor.role === 'admin' ? 'Admin' : 'NV'}</span>
+                      <span className="text-sm">{editor.full_name}</span>
+                      <span className="text-[10px] text-gray-400 ml-auto">{editor.role === 'admin' || editor.role === 'super_admin' ? 'Admin' : 'NV'}</span>
                     </label>
                   ))
                 )}

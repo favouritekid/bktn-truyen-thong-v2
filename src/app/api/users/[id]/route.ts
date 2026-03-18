@@ -1,33 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
-import { createServerSupabase } from '@/lib/supabase/server';
+import { createAdminClient, verifyRole, isVerifyError, verifyErrorResponse } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
-
-function createAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
-
-// Helper to verify admin access
-async function verifyAdmin() {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Chưa đăng nhập', status: 401 };
-
-  const { data: callerProfile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!callerProfile || callerProfile.role !== 'admin') {
-    return { error: 'Không có quyền thực hiện', status: 403 };
-  }
-
-  return { user };
-}
 
 // PATCH /api/users/[id] - Update user profile
 export async function PATCH(
@@ -35,36 +7,52 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await verifyAdmin();
-    if ('error' in auth) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
+    const auth = await verifyRole(['super_admin', 'admin']);
+    if (isVerifyError(auth)) return verifyErrorResponse(auth);
 
+    const callerRole = auth.profile.role;
     const { id } = await params;
     const body = await request.json();
-    const { name, role, status } = body;
+    const { full_name, role, is_active } = body;
 
-    // Build update object with only provided fields
-    const updates: Record<string, string> = {};
-    if (name !== undefined) updates.name = name;
+    // Fetch target user to check hierarchy
+    const adminClient = createAdminClient();
+    const { data: targetProfile } = await adminClient
+      .from('profiles')
+      .select('role')
+      .eq('id', id)
+      .single();
+
+    if (!targetProfile) {
+      return NextResponse.json({ error: 'Không tìm thấy nhân viên' }, { status: 404 });
+    }
+
+    // Admin can only manage editors, super_admin can manage admin+editor
+    if (callerRole === 'admin' && targetProfile.role !== 'editor') {
+      return NextResponse.json({ error: 'Không có quyền quản lý người dùng này' }, { status: 403 });
+    }
+
+    // Build update object
+    const updates: Record<string, unknown> = {};
+    if (full_name !== undefined) updates.full_name = full_name;
     if (role !== undefined) {
-      if (!['admin', 'editor'].includes(role)) {
-        return NextResponse.json({ error: 'Role không hợp lệ' }, { status: 400 });
+      const allowedRoles = callerRole === 'super_admin' ? ['admin', 'editor'] : ['editor'];
+      if (!allowedRoles.includes(role)) {
+        return NextResponse.json({ error: 'Không có quyền gán role này' }, { status: 403 });
       }
       updates.role = role;
     }
-    if (status !== undefined) {
-      if (!['active', 'inactive'].includes(status)) {
-        return NextResponse.json({ error: 'Status không hợp lệ' }, { status: 400 });
+    if (is_active !== undefined) {
+      if (typeof is_active !== 'boolean') {
+        return NextResponse.json({ error: 'is_active phải là boolean' }, { status: 400 });
       }
-      updates.status = status;
+      updates.is_active = is_active;
     }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Không có dữ liệu cập nhật' }, { status: 400 });
     }
 
-    const adminClient = createAdminClient();
     const { data: profile, error } = await adminClient
       .from('profiles')
       .update(updates)
@@ -89,21 +77,41 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await verifyAdmin();
-    if ('error' in auth) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
+    const auth = await verifyRole(['super_admin', 'admin']);
+    if (isVerifyError(auth)) return verifyErrorResponse(auth);
 
+    const callerRole = auth.profile.role;
     const { id } = await params;
 
     // Prevent self-deletion
-    if (auth.user!.id === id) {
+    if (auth.user.id === id) {
       return NextResponse.json({ error: 'Không thể xoá chính mình' }, { status: 400 });
     }
 
     const adminClient = createAdminClient();
 
-    // Delete profile first (FK or trigger may depend on auth user)
+    // Fetch target to check hierarchy
+    const { data: targetProfile } = await adminClient
+      .from('profiles')
+      .select('role')
+      .eq('id', id)
+      .single();
+
+    if (!targetProfile) {
+      return NextResponse.json({ error: 'Không tìm thấy nhân viên' }, { status: 404 });
+    }
+
+    // Admin can only delete editors, super_admin can delete admin+editor
+    if (callerRole === 'admin' && targetProfile.role !== 'editor') {
+      return NextResponse.json({ error: 'Không có quyền xoá người dùng này' }, { status: 403 });
+    }
+
+    // Cannot delete super_admin
+    if (targetProfile.role === 'super_admin') {
+      return NextResponse.json({ error: 'Không thể xoá Super Admin' }, { status: 403 });
+    }
+
+    // Delete profile first
     const { error: profileError } = await adminClient
       .from('profiles')
       .delete()

@@ -14,7 +14,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq('id', user.id)
     .single();
 
-  if (!profile || profile.status !== 'active') redirect('/login');
+  if (!profile || !profile.is_active) redirect('/login');
+
+  // Fire-and-forget: update last_login_at and last_activity_at
+  supabase
+    .from('profiles')
+    .update({
+      last_login_at: new Date().toISOString(),
+      last_activity_at: new Date().toISOString(),
+    })
+    .eq('id', user.id)
+    .then();
 
   return <AppShell profile={profile}>{children}</AppShell>;
 }
