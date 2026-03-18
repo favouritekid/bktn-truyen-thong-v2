@@ -128,11 +128,11 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
           .delete()
           .eq('task_id', task.id);
 
-        // Insert new
+        // Insert new (upsert to avoid conflict if delete was blocked by RLS)
         if (selectedAssignees.length > 0) {
           await supabase
             .from('task_assignees')
-            .insert(selectedAssignees.map(uid => ({ task_id: task.id, user_id: uid })));
+            .upsert(selectedAssignees.map(uid => ({ task_id: task.id, user_id: uid })), { ignoreDuplicates: true });
         }
       }
 
