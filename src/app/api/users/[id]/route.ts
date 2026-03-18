@@ -83,7 +83,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/users/[id] - Deactivate user (set status to inactive)
+// DELETE /api/users/[id] - Permanently delete user (auth + profile)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -96,19 +96,32 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const adminClient = createAdminClient();
-    const { data: profile, error } = await adminClient
-      .from('profiles')
-      .update({ status: 'inactive' })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: 'Lỗi vô hiệu hóa: ' + error.message }, { status: 400 });
+    // Prevent self-deletion
+    if (auth.user!.id === id) {
+      return NextResponse.json({ error: 'Không thể xoá chính mình' }, { status: 400 });
     }
 
-    return NextResponse.json({ user: profile });
+    const adminClient = createAdminClient();
+
+    // Delete profile first (FK or trigger may depend on auth user)
+    const { error: profileError } = await adminClient
+      .from('profiles')
+      .delete()
+      .eq('id', id);
+
+    if (profileError) {
+      return NextResponse.json({ error: 'Lỗi xoá profile: ' + profileError.message }, { status: 400 });
+    }
+
+    // Delete auth user
+    const { error: authError } = await adminClient.auth.admin.deleteUser(id);
+
+    if (authError) {
+      console.error('Delete auth user error:', authError);
+      return NextResponse.json({ error: 'Lỗi xoá tài khoản: ' + authError.message }, { status: 400 });
+    }
+
+    return NextResponse.json({ message: 'Đã xoá nhân viên' });
   } catch (err) {
     console.error('DELETE /api/users/[id] error:', err);
     return NextResponse.json({ error: 'Lỗi hệ thống' }, { status: 500 });

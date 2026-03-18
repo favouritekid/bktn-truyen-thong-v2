@@ -206,6 +206,30 @@ export default function UsersPage() {
     setSaving(false);
   }, [editingUser, newPassword, show, closeModal]);
 
+  // Delete user
+  const handleDelete = useCallback(async (user: Profile) => {
+    if (!confirm(`Bạn có chắc muốn xoá nhân viên "${user.name}" (${user.email})?\n\nHành động này không thể hoàn tác!`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        show(data.error || 'Lỗi xoá nhân viên', 'error');
+      } else {
+        show(`Đã xoá nhân viên ${user.name}.`, 'success');
+        loadUsers();
+      }
+    } catch {
+      show('Lỗi kết nối server', 'error');
+    }
+  }, [show, loadUsers]);
+
   // Non-admin guard
   if (!isAdmin) {
     return (
@@ -308,6 +332,15 @@ export default function UsersPage() {
                         >
                           Đổi MK
                         </button>
+                        {user.id !== profile.id && (
+                          <button
+                            onClick={() => handleDelete(user)}
+                            className="px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            title="Xoá nhân viên"
+                          >
+                            Xoá
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
