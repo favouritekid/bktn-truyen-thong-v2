@@ -14,76 +14,126 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
   const channelColor = getChannelColor(task.channel);
   const overdue = isOverdue(task.deadline) && !['Đã đăng'].includes(task.status);
   const dueSoon = isDueSoon(task.deadline) && !['Đã đăng'].includes(task.status);
-  const assigneeNames = task.assignees?.map(a => a.full_name).join(', ') || 'Chưa gán';
   const resultCount = task.results?.length || 0;
+
+  const getInitials = (name: string) => {
+    const parts = name.split(' ');
+    return parts.length > 1
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+      : name.substring(0, 2).toUpperCase();
+  };
+
+  const avatarColors = ['#4F46E5', '#0891B2', '#059669', '#D97706', '#DC2626', '#7C3AED', '#DB2777'];
+  const getAvatarColor = (name: string) => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return avatarColors[Math.abs(hash) % avatarColors.length];
+  };
 
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 cursor-pointer hover:shadow-md transition-shadow group relative"
+      className="bg-white rounded-lg border border-gray-200 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden"
     >
-      {/* Channel badge */}
-      <div className="flex items-center justify-between mb-2">
-        <span
-          className="text-[10px] font-bold text-white px-2 py-0.5 rounded-full"
-          style={{ backgroundColor: channelColor }}
-        >
-          {task.channel}
-        </span>
-        {task.priority === 'Cao' && (
-          <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-            Ưu tiên cao
+      {/* Color strip top - channel color */}
+      <div className="h-1" style={{ backgroundColor: channelColor }} />
+
+      <div className="px-3 py-2.5">
+        {/* Labels row */}
+        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+          <span
+            className="text-[10px] font-semibold text-white px-2 py-0.5 rounded"
+            style={{ backgroundColor: channelColor }}
+          >
+            {task.channel}
           </span>
-        )}
-      </div>
-
-      {/* Title */}
-      <h4 className="text-sm font-semibold text-gray-800 mb-1.5 leading-tight line-clamp-2">
-        {task.title}
-      </h4>
-
-      {/* Content type */}
-      {task.content_type && (
-        <p className="text-[11px] text-gray-500 mb-1.5">{task.content_type}</p>
-      )}
-
-      {/* Deadline */}
-      {task.deadline && (
-        <div className={`flex items-center gap-1 text-[11px] mb-1.5 ${
-          overdue ? 'text-red-600 font-bold' : dueSoon ? 'text-amber-600 font-medium' : 'text-gray-500'
-        }`}>
-          <span>&#128197;</span>
-          <span>{formatDateVN(task.deadline)}</span>
-          {overdue && <span className="ml-1 text-red-500">(Trễ hạn!)</span>}
-          {dueSoon && !overdue && <span className="ml-1">(Sắp đến hạn)</span>}
+          {task.campaign && (
+            <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+              {task.campaign.name}
+            </span>
+          )}
+          {task.priority === 'Cao' && (
+            <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
+              !!!
+            </span>
+          )}
         </div>
-      )}
 
-      {/* Assignees */}
-      <p className="text-[11px] text-gray-600 mb-1.5 truncate">
-        <span className="text-gray-400">Phụ trách:</span> {assigneeNames}
-      </p>
+        {/* Title */}
+        <h4 className="text-[13px] font-medium text-gray-800 leading-snug line-clamp-2 mb-2">
+          {task.title}
+        </h4>
 
-      {/* Admin note indicator */}
-      {task.admin_note && (
-        <p className="text-[11px] text-amber-700 bg-amber-50 rounded px-1.5 py-0.5 mb-1.5 truncate">
-          Ghi chú: {task.admin_note}
-        </p>
-      )}
+        {/* Badges + Avatars row */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Badges */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Deadline badge */}
+            {task.deadline && (
+              <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                overdue
+                  ? 'bg-red-100 text-red-700'
+                  : dueSoon
+                    ? 'bg-amber-100 text-amber-700'
+                    : task.status === 'Đã đăng'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-100 text-gray-600'
+              }`}>
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {formatDateVN(task.deadline)}
+              </span>
+            )}
 
-      {/* Bottom row: results + status */}
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-        {resultCount > 0 && (
-          <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-            {resultCount} kết quả
-          </span>
-        )}
-        <span
-          className="text-[10px] font-bold text-white px-2 py-0.5 rounded-full ml-auto"
-          style={{ backgroundColor: statusColor }}
-        >
-          {task.status}
-        </span>
+            {/* Results badge */}
+            {resultCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+                </svg>
+                {resultCount}
+              </span>
+            )}
+
+            {/* Admin note indicator */}
+            {task.admin_note && (
+              <span className="inline-flex items-center text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded" title={task.admin_note}>
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                </svg>
+              </span>
+            )}
+
+            {/* Status badge */}
+            <span
+              className="text-[10px] font-semibold text-white px-2 py-0.5 rounded"
+              style={{ backgroundColor: statusColor }}
+            >
+              {task.status}
+            </span>
+          </div>
+
+          {/* Assignee avatars */}
+          <div className="flex -space-x-1.5 shrink-0">
+            {(task.assignees || []).slice(0, 3).map(a => (
+              <div
+                key={a.id}
+                title={a.full_name}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold text-white border-2 border-white"
+                style={{ backgroundColor: getAvatarColor(a.full_name) }}
+              >
+                {getInitials(a.full_name)}
+              </div>
+            ))}
+            {(task.assignees?.length || 0) > 3 && (
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold text-gray-500 bg-gray-200 border-2 border-white">
+                +{task.assignees!.length - 3}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
