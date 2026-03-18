@@ -22,10 +22,12 @@ export interface Task {
   deadline: string | null;
   completed_at: string | null;
   admin_note: string;
+  campaign_id?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
   // Joined data
+  campaign?: Campaign;
   assignees?: Profile[];
   results?: TaskResult[];
   creator?: Profile;

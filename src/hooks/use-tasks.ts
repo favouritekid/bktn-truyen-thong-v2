@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { Profile, Task, TaskResult } from '@/lib/types';
+import type { Campaign, Profile, Task, TaskResult } from '@/lib/types';
 
 interface UseTasksOptions {
   profileId: string;
@@ -11,12 +11,20 @@ interface UseTasksOptions {
   assigneeFilter?: string;
 }
 
+interface RawCampaign {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+}
+
 interface RawTaskRow {
   id: string;
   title: string;
   description: string;
   channel: string;
   content_type: string | null;
+  campaign_id: string | null;
   status: string;
   priority: string;
   deadline: string | null;
@@ -28,6 +36,7 @@ interface RawTaskRow {
   task_assignees: { profiles: Profile | Profile[] }[];
   task_results: TaskResult[];
   creator: Profile | Profile[];
+  campaign: RawCampaign | RawCampaign[] | null;
 }
 
 export function useTasks({ profileId, role, channelFilter, assigneeFilter }: UseTasksOptions) {
@@ -41,10 +50,11 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
     let query = supabase
       .from('tasks')
       .select(`
-        id, title, description, channel, content_type, status, priority, deadline, completed_at, admin_note, created_by, created_at, updated_at,
+        id, title, description, channel, content_type, campaign_id, status, priority, deadline, completed_at, admin_note, created_by, created_at, updated_at,
         task_assignees!left(profiles!inner(id, email, full_name, role, is_active, created_at, updated_at)),
         task_results!left(id, task_id, type, value, label, created_at, created_by),
-        creator:profiles!tasks_created_by_fkey(id, email, full_name, role, is_active, created_at, updated_at)
+        creator:profiles!tasks_created_by_fkey(id, email, full_name, role, is_active, created_at, updated_at),
+        campaign:campaigns!left(id, code, name, status)
       `)
       .order('created_at', { ascending: false });
 
@@ -69,6 +79,7 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         .filter(Boolean);
 
       const creator = Array.isArray(row.creator) ? row.creator[0] : row.creator;
+      const campaign = Array.isArray(row.campaign) ? row.campaign[0] : row.campaign;
 
       return {
         id: row.id,
@@ -76,6 +87,7 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         description: row.description,
         channel: row.channel,
         content_type: row.content_type,
+        campaign_id: row.campaign_id,
         status: row.status,
         priority: row.priority,
         deadline: row.deadline,
@@ -87,6 +99,7 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         assignees,
         results: row.task_results || [],
         creator,
+        campaign: campaign as Campaign | undefined,
       } as Task;
     });
 

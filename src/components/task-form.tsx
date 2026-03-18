@@ -7,7 +7,7 @@ import { useChannels } from '@/hooks/use-channels';
 import { generateTaskId } from '@/lib/utils';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
-import type { Profile, Task } from '@/lib/types';
+import type { Campaign, Profile, Task } from '@/lib/types';
 
 interface TaskFormProps {
   task: Task | null; // null = create mode
@@ -32,6 +32,8 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
   const [deadline, setDeadline] = useState('');
   const [description, setDescription] = useState('');
   const [adminNote, setAdminNote] = useState('');
+  const [campaignId, setCampaignId] = useState<string>('');
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [allEditors, setAllEditors] = useState<Profile[]>([]);
   const [saving, setSaving] = useState(false);
@@ -56,6 +58,20 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
     loadEditors();
   }, [isAdmin]);
 
+  // Load campaigns for dropdown
+  useEffect(() => {
+    async function loadCampaigns() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('campaigns')
+        .select('id, code, name, status')
+        .eq('status', 'active')
+        .order('name');
+      setCampaigns(data as Campaign[] || []);
+    }
+    loadCampaigns();
+  }, []);
+
   // Populate form when editing
   useEffect(() => {
     if (task) {
@@ -64,6 +80,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
       setContentType(task.content_type || CONTENT_TYPES[0]);
       setPriority(task.priority || PRIORITIES[1]);
       setDeadline(task.deadline ? task.deadline.split('T')[0] : '');
+      setCampaignId(task.campaign_id || '');
       setDescription(task.description || '');
       setAdminNote(task.admin_note || '');
       setSelectedAssignees(task.assignees?.map(a => a.id) || []);
@@ -82,6 +99,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
 
     if (!title.trim()) { show('Vui lòng nhập tiêu đề.', 'error'); return; }
     if (!channel) { show('Vui lòng chọn kênh.', 'error'); return; }
+    if (!campaignId) { show('Vui lòng chọn chiến dịch.', 'error'); return; }
     if (!deadline) { show('Vui lòng chọn deadline.', 'error'); return; }
     if (selectedAssignees.length === 0) { show('Vui lòng chọn ít nhất một người phụ trách.', 'error'); return; }
 
@@ -98,6 +116,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
       if (!fieldsLocked) {
         updates.title = title.trim();
         updates.channel = channel;
+        updates.campaign_id = campaignId;
         updates.content_type = contentType;
         updates.priority = priority;
         updates.deadline = deadline;
@@ -155,6 +174,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
           id: newId,
           title: title.trim(),
           channel,
+          campaign_id: campaignId,
           content_type: contentType,
           priority,
           deadline,
@@ -191,7 +211,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
     setSaving(false);
     onSaved();
     onClose();
-  }, [title, channel, contentType, priority, deadline, description, adminNote, selectedAssignees, isEditing, fieldsLocked, isAdmin, task, profile.id, show, onSaved, onClose]);
+  }, [title, channel, campaignId, contentType, priority, deadline, description, adminNote, selectedAssignees, isEditing, fieldsLocked, isAdmin, task, profile.id, show, onSaved, onClose]);
 
   return (
     <>
@@ -261,6 +281,24 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Campaign */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Chiến dịch <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={campaignId}
+                onChange={e => setCampaignId(e.target.value)}
+                disabled={fieldsLocked}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              >
+                <option value="">-- Chọn chiến dịch --</option>
+                {campaigns.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* Priority + Deadline row */}

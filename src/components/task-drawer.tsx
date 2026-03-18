@@ -355,6 +355,11 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
               <span className="text-[11px] font-semibold text-white px-2.5 py-1 rounded" style={{ backgroundColor: statusColor }}>
                 {task.status}
               </span>
+              {task.campaign && (
+                <span className="text-[11px] font-medium text-indigo-700 bg-indigo-100 px-2.5 py-1 rounded">
+                  {task.campaign.name}
+                </span>
+              )}
               {task.content_type && (
                 <span className="text-[11px] font-medium text-gray-600 bg-gray-100 px-2.5 py-1 rounded">
                   {task.content_type}
