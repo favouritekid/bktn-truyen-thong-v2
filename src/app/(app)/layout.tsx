@@ -10,7 +10,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*')
+    .select('id, email, full_name, role, is_active, last_login_at, last_activity_at, created_by, created_at, updated_at')
     .eq('id', user.id)
     .single();
 

@@ -43,7 +43,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
       const supabase = createClient();
       let query = supabase
         .from('profiles')
-        .select('*')
+        .select('id, email, full_name, role, is_active, created_at, updated_at')
         .eq('is_active', true);
 
       // Editors can only see other editors; admin sees all

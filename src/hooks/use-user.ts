@@ -21,7 +21,7 @@ export function useUser() {
       if (authUser) {
         const { data } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id, email, full_name, role, is_active, last_login_at, last_activity_at, created_by, created_at, updated_at')
           .eq('id', authUser.id)
           .single();
         setProfile(data as Profile | null);
@@ -36,7 +36,7 @@ export function useUser() {
         setUser(session.user);
         supabase
           .from('profiles')
-          .select('*')
+          .select('id, email, full_name, role, is_active, last_login_at, last_activity_at, created_by, created_at, updated_at')
           .eq('id', session.user.id)
           .single()
           .then(({ data }) => setProfile(data as Profile | null));

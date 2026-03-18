@@ -36,7 +36,7 @@ export default function UsersPage() {
     const supabase = createClient();
     let query = supabase
       .from('profiles')
-      .select('*')
+      .select('id, email, full_name, role, is_active, last_login_at, last_activity_at, created_by, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     // Admin only sees editors, super_admin sees all
