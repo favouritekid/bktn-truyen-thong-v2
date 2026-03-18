@@ -240,9 +240,6 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
           <button key="editDesc" onClick={() => setEditingDescription(true)} className={`${btnBase} bg-white border border-gray-300 hover:bg-gray-50 text-gray-700`}>
             Sửa mô tả
           </button>,
-          <button key="addResult" onClick={() => setShowResultForm(true)} className={`${btnBase} bg-purple-600 hover:bg-purple-700 text-white`}>
-            Báo cáo KQ
-          </button>,
           <button key="sendResult" onClick={handleSendResultApproval} disabled={updating} className={`${btnBase} bg-green-600 hover:bg-green-700 text-white`}>
             Gửi duyệt KQ
           </button>
@@ -273,14 +270,6 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
           </button>,
           <button key="approveResult" onClick={handleApproveResult} disabled={updating} className={`${btnBase} bg-green-600 hover:bg-green-700 text-white`}>
             Duyệt KQ
-          </button>
-        );
-      }
-
-      if (['Bản nháp', 'Đã duyệt', 'Đang làm'].includes(task.status)) {
-        buttons.push(
-          <button key="addResult" onClick={() => setShowResultForm(true)} className={`${btnBase} bg-purple-600 hover:bg-purple-700 text-white`}>
-            Báo cáo KQ
           </button>
         );
       }
