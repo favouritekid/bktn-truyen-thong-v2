@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import PasswordInput from '@/components/ui/password-input';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -45,11 +46,15 @@ export default function LoginPage() {
           className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
           onKeyDown={e => e.key === 'Enter' && document.getElementById('pw')?.focus()}
         />
-        <input
-          id="pw" type="password" placeholder="Mật khẩu" value={password}
-          onChange={e => setPassword(e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <div className="mb-4">
+          <PasswordInput
+            id="pw"
+            placeholder="Mật khẩu"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
 
         <button
           type="submit" disabled={loading}

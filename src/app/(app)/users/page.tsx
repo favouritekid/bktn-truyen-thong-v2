@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useProfile } from '@/components/profile-context';
 import { useToast } from '@/components/ui/toast';
+import PasswordInput from '@/components/ui/password-input';
 import type { Profile } from '@/lib/types';
 
 type ModalMode = 'closed' | 'create' | 'edit' | 'reset-password';
@@ -411,11 +412,9 @@ export default function UsersPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Mật khẩu <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="password"
+                      <PasswordInput
                         value={formPassword}
                         onChange={e => setFormPassword(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="Tối thiểu 6 ký tự"
                       />
                     </div>
@@ -490,11 +489,9 @@ export default function UsersPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Mật khẩu mới <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={newPassword}
                       onChange={e => setNewPassword(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Tối thiểu 6 ký tự"
                     />
                   </div>

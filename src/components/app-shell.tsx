@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ProfileProvider } from './profile-context';
 import { ToastProvider, useToast } from './ui/toast';
+import PasswordInput from './ui/password-input';
 import type { Profile } from '@/lib/types';
 
 const NAV_ITEMS = [
@@ -76,11 +77,9 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Mật khẩu hiện tại <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={currentPassword}
                   onChange={e => setCurrentPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Nhập mật khẩu hiện tại"
                 />
               </div>
@@ -88,11 +87,9 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Mật khẩu mới <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Tối thiểu 6 ký tự"
                 />
               </div>
@@ -100,11 +97,9 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Xác nhận mật khẩu mới <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Nhập lại mật khẩu mới"
                 />
               </div>
