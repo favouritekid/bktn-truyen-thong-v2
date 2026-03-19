@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
-import type { LinkLabel, Task, TaskMemberSubmission, TaskMemberSubmissionLink } from '@/lib/types';
+import type { LinkLabel, Task, TaskChecklist, TaskMemberSubmission, TaskMemberSubmissionLink } from '@/lib/types';
 
 interface TaskSubmissionsProps {
   task: Task;
@@ -44,6 +44,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
   const [submissionNote, setSubmissionNote] = useState('');
   const [submissionLinks, setSubmissionLinks] = useState<{ labelId: string; url: string; note: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [myChecklistItems, setMyChecklistItems] = useState<TaskChecklist[]>([]);
 
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
@@ -112,7 +113,27 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     return () => { supabase.removeChannel(channel); };
   }, [task.id, fetchSubmissions]);
 
-  const startEditing = useCallback((userId: string) => {
+  const fetchMyChecklist = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('task_checklists')
+      .select('id, task_id, title, is_checked, sort_order, assignee_user_id, created_by, created_at, updated_at')
+      .eq('task_id', task.id)
+      .eq('assignee_user_id', profile.id)
+      .order('sort_order');
+    setMyChecklistItems((data as TaskChecklist[]) || []);
+  }, [task.id, profile.id]);
+
+  const handleToggleChecklist = useCallback(async (itemId: string, currentChecked: boolean) => {
+    const supabase = createClient();
+    await supabase.from('task_checklists')
+      .update({ is_checked: !currentChecked })
+      .eq('id', itemId);
+    setMyChecklistItems(prev => prev.map(i => i.id === itemId ? { ...i, is_checked: !currentChecked } : i));
+    onRefresh();
+  }, [onRefresh]);
+
+  const startEditing = useCallback(async (userId: string) => {
     const sub = submissions.find(s => s.user_id === userId);
     if (sub) {
       setSubmissionNote(sub.note || '');
@@ -125,8 +146,9 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       setSubmissionNote('');
       setSubmissionLinks([{ labelId: '', url: '', note: '' }]);
     }
+    await fetchMyChecklist();
     setEditingUserId(userId);
-  }, [submissions]);
+  }, [submissions, fetchMyChecklist]);
 
   const cancelEditing = useCallback(() => {
     setEditingUserId(null);
@@ -237,16 +259,64 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
 
   if (loading) return null;
 
+  const myCheckedCount = myChecklistItems.filter(i => i.is_checked).length;
+  const myTotalChecklist = myChecklistItems.length;
+  const hasUncheckedItems = myTotalChecklist > 0 && myCheckedCount < myTotalChecklist;
+
   const renderEditForm = () => (
     <div className="pt-2 space-y-2.5">
+      {/* Checklist assigned to me */}
+      {myTotalChecklist > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wide">
+              Checklist của bạn ({myCheckedCount}/{myTotalChecklist})
+            </span>
+            {hasUncheckedItems && (
+              <span className="text-[10px] text-amber-600 font-medium">Chưa hoàn thành hết</span>
+            )}
+          </div>
+          <div className="h-1 rounded-full bg-blue-200 mb-2">
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: `${Math.round((myCheckedCount / myTotalChecklist) * 100)}%`,
+                backgroundColor: myCheckedCount === myTotalChecklist ? '#2E7D32' : '#0288D1',
+              }}
+            />
+          </div>
+          <div className="space-y-0.5">
+            {myChecklistItems.map(item => (
+              <label
+                key={item.id}
+                className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-blue-100/60 cursor-pointer transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={item.is_checked}
+                  onChange={() => handleToggleChecklist(item.id, item.is_checked)}
+                  className="accent-blue-600 shrink-0"
+                />
+                <span className={`text-xs ${item.is_checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                  {item.title}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Note */}
       <textarea
         value={submissionNote}
         onChange={e => setSubmissionNote(e.target.value)}
         rows={2}
         placeholder="Ghi chú về kết quả..."
         className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-        autoFocus
+        autoFocus={myTotalChecklist === 0}
       />
+
+      {/* Links */}
       <div className="space-y-1.5">
         {submissionLinks.map((link, idx) => (
           <div key={idx} className="flex gap-1.5 items-center">
@@ -283,6 +353,18 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
           + Thêm link
         </button>
       </div>
+
+      {/* Warning if unchecked items */}
+      {hasUncheckedItems && (
+        <div className="flex items-center gap-1.5 text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <span>Bạn còn {myTotalChecklist - myCheckedCount} mục checklist chưa hoàn thành</span>
+        </div>
+      )}
+
+      {/* Actions */}
       <div className="flex gap-2 pt-1">
         <button onClick={handleSubmit} disabled={saving} className="px-3 py-1 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 disabled:opacity-50">
           {saving ? 'Đang lưu...' : 'Lưu'}
