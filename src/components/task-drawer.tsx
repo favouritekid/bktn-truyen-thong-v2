@@ -25,16 +25,45 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
   const [updating, setUpdating] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
+  const [allChecklistDone, setAllChecklistDone] = useState(false);
 
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isEditor = profile.role === 'editor';
+
+  // Check if all checklist items are completed
+  const checkChecklistCompletion = useCallback(async (taskId: string) => {
+    const supabase = createClient();
+    const { count: total } = await supabase
+      .from('task_checklists')
+      .select('*', { count: 'exact', head: true })
+      .eq('task_id', taskId);
+
+    if (!total || total === 0) {
+      setAllChecklistDone(true); // No checklist = OK to proceed
+      return;
+    }
+
+    const { count: unchecked } = await supabase
+      .from('task_checklists')
+      .select('*', { count: 'exact', head: true })
+      .eq('task_id', taskId)
+      .eq('is_checked', false);
+
+    setAllChecklistDone(unchecked === 0);
+  }, []);
 
   useEffect(() => {
     if (task) {
       setDescriptionDraft(task.description || '');
       setEditingDescription(false);
+      checkChecklistCompletion(task.id);
     }
-  }, [task]);
+  }, [task, checkChecklistCompletion]);
+
+  const handleRefresh = useCallback(() => {
+    onRefresh();
+    if (task) checkChecklistCompletion(task.id);
+  }, [onRefresh, task, checkChecklistCompletion]);
 
   const logActivity = useCallback(async (action: string, detail: string, taskId: string) => {
     const supabase = createClient();
@@ -176,11 +205,21 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
         buttons.push(
           <button key="editDesc" onClick={() => setEditingDescription(true)} className={`${btnBase} bg-white border border-gray-300 hover:bg-gray-50 text-gray-700`}>
             Sửa mô tả
-          </button>,
-          <button key="sendResult" onClick={handleSendResultApproval} disabled={updating} className={`${btnBase} bg-green-600 hover:bg-green-700 text-white`}>
-            Gửi duyệt KQ
           </button>
         );
+        if (allChecklistDone) {
+          buttons.push(
+            <button key="sendResult" onClick={handleSendResultApproval} disabled={updating} className={`${btnBase} bg-green-600 hover:bg-green-700 text-white`}>
+              Gửi duyệt KQ
+            </button>
+          );
+        } else {
+          buttons.push(
+            <span key="checklistWarn" className="text-[11px] text-amber-600 italic py-1.5">
+              Hoàn thành checklist để gửi duyệt
+            </span>
+          );
+        }
       } else if (task.status === 'Chờ duyệt KH' || task.status === 'Chờ duyệt KQ') {
         buttons.push(
           <span key="waiting" className="text-xs text-gray-400 italic py-1.5">
@@ -395,7 +434,7 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
                 {/* Checklist */}
                 <section className="bg-white rounded-lg border border-blue-100 p-3">
-                  <TaskChecklist task={task} onRefresh={onRefresh} />
+                  <TaskChecklist task={task} onRefresh={handleRefresh} />
                 </section>
 
                 {/* Links */}
@@ -431,7 +470,7 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
                 </div>
 
                 <div className="p-3">
-                  <TaskSubmissions task={task} onRefresh={onRefresh} />
+                  <TaskSubmissions task={task} onRefresh={handleRefresh} />
                 </div>
               </div>
             )}
