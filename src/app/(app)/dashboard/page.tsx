@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { STATUSES, STATUS_COLORS, CHANNEL_COLORS } from '@/lib/constants';
 import { useChannels } from '@/hooks/use-channels';
-import { formatDateVN, isOverdue, isDueSoon, isAdminOrAbove } from '@/lib/utils';
+import { formatDateTimeVN, isOverdue, isDueSoon, isAdminOrAbove } from '@/lib/utils';
 import { useProfile } from '@/components/profile-context';
 import { useTasks } from '@/hooks/use-tasks';
 import TaskDrawer from '@/components/task-drawer';
@@ -34,7 +34,11 @@ export default function DashboardPage() {
 
     for (const t of tasks) {
       byStatus[t.status] = (byStatus[t.status] || 0) + 1;
-      if (t.channel) byChannel[t.channel] = (byChannel[t.channel] || 0) + 1;
+      if (t.channels) {
+        for (const ch of t.channels) {
+          byChannel[ch.name] = (byChannel[ch.name] || 0) + 1;
+        }
+      }
 
       if (t.assignees) {
         for (const a of t.assignees) {
@@ -163,7 +167,7 @@ export default function DashboardPage() {
                     className="w-full text-left bg-white rounded-lg px-3 py-2 text-sm hover:bg-red-100 transition-colors border border-red-100 flex items-center justify-between gap-2"
                   >
                     <span className="truncate font-medium text-gray-800">{t.title}</span>
-                    <span className="text-[11px] text-red-600 shrink-0">{formatDateVN(t.deadline)}</span>
+                    <span className="text-[11px] text-red-600 shrink-0">{formatDateTimeVN(t.deadline)}</span>
                   </button>
                 ))}
               </div>
@@ -184,7 +188,7 @@ export default function DashboardPage() {
                     className="w-full text-left bg-white rounded-lg px-3 py-2 text-sm hover:bg-amber-100 transition-colors border border-amber-100 flex items-center justify-between gap-2"
                   >
                     <span className="truncate font-medium text-gray-800">{t.title}</span>
-                    <span className="text-[11px] text-amber-600 shrink-0">{formatDateVN(t.deadline)}</span>
+                    <span className="text-[11px] text-amber-600 shrink-0">{formatDateTimeVN(t.deadline)}</span>
                   </button>
                 ))}
               </div>
@@ -211,7 +215,7 @@ export default function DashboardPage() {
             </thead>
             <tbody>
               {channelNames.map(ch => {
-                const chTasks = tasks.filter(t => t.channel === ch);
+                const chTasks = tasks.filter(t => t.channels?.some(c => c.name === ch));
                 if (chTasks.length === 0) return null;
                 return (
                   <tr key={ch} className="border-b border-gray-100 hover:bg-gray-50">

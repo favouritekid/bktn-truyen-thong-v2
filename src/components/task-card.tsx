@@ -1,7 +1,7 @@
 'use client';
 
 import { STATUS_COLORS } from '@/lib/constants';
-import { formatDateVN, getChannelColor, isOverdue, isDueSoon } from '@/lib/utils';
+import { formatDateTimeVN, getChannelColor, isOverdue, isDueSoon } from '@/lib/utils';
 import type { Task } from '@/lib/types';
 
 interface TaskCardProps {
@@ -11,7 +11,7 @@ interface TaskCardProps {
 
 export default function TaskCard({ task, onClick }: TaskCardProps) {
   const statusColor = STATUS_COLORS[task.status] || '#9E9E9E';
-  const channelColor = getChannelColor(task.channel);
+  const firstChannelColor = task.channels?.[0] ? getChannelColor(task.channels[0].name) : '#6B7280';
   const overdue = isOverdue(task.deadline) && !['Đã đăng'].includes(task.status);
   const dueSoon = isDueSoon(task.deadline) && !['Đã đăng'].includes(task.status);
   const resultCount = task.results?.length || 0;
@@ -35,18 +35,21 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
       onClick={onClick}
       className="bg-white rounded-lg border border-gray-200 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden"
     >
-      {/* Color strip top - channel color */}
-      <div className="h-1" style={{ backgroundColor: channelColor }} />
+      {/* Color strip top - first channel color */}
+      <div className="h-1" style={{ backgroundColor: firstChannelColor }} />
 
       <div className="px-3 py-2.5">
         {/* Labels row */}
         <div className="flex flex-wrap items-center gap-1.5 mb-2">
-          <span
-            className="text-[10px] font-semibold text-white px-2 py-0.5 rounded"
-            style={{ backgroundColor: channelColor }}
-          >
-            {task.channel}
-          </span>
+          {(task.channels || []).map(ch => (
+            <span
+              key={ch.id}
+              className="text-[10px] font-semibold text-white px-2 py-0.5 rounded"
+              style={{ backgroundColor: getChannelColor(ch.name) }}
+            >
+              {ch.name}
+            </span>
+          ))}
           {task.campaign && (
             <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
               {task.campaign.name}
@@ -82,7 +85,7 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                {formatDateVN(task.deadline)}
+                {formatDateTimeVN(task.deadline)}
               </span>
             )}
 

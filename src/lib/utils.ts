@@ -19,6 +19,18 @@ export function formatDateVN(date: string | Date | null | undefined): string {
   return `${day}/${month}/${year}`;
 }
 
+export function formatDateTimeVN(date: string | Date | null | undefined): string {
+  if (!date) return '';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+
 export function getChannelColor(channel: string): string {
   return CHANNEL_COLORS[channel] ?? '#6B7280';
 }
@@ -26,19 +38,17 @@ export function getChannelColor(channel: string): string {
 export function isOverdue(deadline: string | null): boolean {
   if (!deadline) return false;
   const d = new Date(deadline);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return d < today;
+  const now = new Date();
+  return d < now;
 }
 
 export function isDueSoon(deadline: string | null, days: number = 2): boolean {
   if (!deadline) return false;
   const d = new Date(deadline);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const future = new Date(today);
+  const now = new Date();
+  const future = new Date(now);
   future.setDate(future.getDate() + days);
-  return d >= today && d <= future;
+  return d >= now && d <= future;
 }
 
 export function cn(...classes: (string | boolean | undefined | null)[]): string {

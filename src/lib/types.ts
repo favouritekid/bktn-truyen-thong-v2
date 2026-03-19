@@ -15,7 +15,6 @@ export interface Task {
   id: string;
   title: string;
   description: string;
-  channel: string;
   content_type: string | null;
   status: string;
   priority: string;
@@ -28,6 +27,7 @@ export interface Task {
   updated_at: string;
   // Joined data
   campaign?: Campaign;
+  channels?: Channel[];
   assignees?: Profile[];
   results?: TaskResult[];
   creator?: Profile;
@@ -42,9 +42,11 @@ export interface TaskChecklist {
   title: string;
   is_checked: boolean;
   sort_order: number;
+  assignee_user_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
+  assignee?: Profile;
 }
 
 export interface TaskLink {
@@ -76,6 +78,27 @@ export interface TaskResult {
   label: string;
   created_at: string;
   created_by: string;
+}
+
+export interface TaskMemberSubmission {
+  id: string;
+  task_id: string;
+  user_id: string;
+  note: string;
+  submitted_at: string;
+  updated_at: string;
+  user?: Profile;
+  links?: TaskMemberSubmissionLink[];
+}
+
+export interface TaskMemberSubmissionLink {
+  id: string;
+  submission_id: string;
+  label_id: string | null;
+  url: string;
+  note: string;
+  created_at: string;
+  link_label?: LinkLabel;
 }
 
 export interface ActivityLog {

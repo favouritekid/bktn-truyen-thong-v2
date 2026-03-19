@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { STATUS_COLORS, RESULT_TYPES } from '@/lib/constants';
-import { formatDateVN, getChannelColor, isOverdue } from '@/lib/utils';
+import { STATUS_COLORS } from '@/lib/constants';
+import { formatDateVN, formatDateTimeVN, getChannelColor, isOverdue } from '@/lib/utils';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
 import TaskChecklist from './task-checklist';
 import TaskLinks from './task-links';
 import TaskComments from './task-comments';
-import type { Task, TaskResult } from '@/lib/types';
+import TaskSubmissions from './task-submissions';
+import type { Task } from '@/lib/types';
 
 interface TaskDrawerProps {
   task: Task | null;
@@ -22,11 +23,6 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
   const profile = useProfile();
   const { show } = useToast();
   const [updating, setUpdating] = useState(false);
-  const [results, setResults] = useState<TaskResult[]>([]);
-  const [newResultType, setNewResultType] = useState('link');
-  const [newResultValue, setNewResultValue] = useState('');
-  const [newResultLabel, setNewResultLabel] = useState('');
-  const [showResultForm, setShowResultForm] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
 
@@ -35,12 +31,8 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
   useEffect(() => {
     if (task) {
-      setResults(task.results || []);
       setDescriptionDraft(task.description || '');
-      setShowResultForm(false);
       setEditingDescription(false);
-      setNewResultValue('');
-      setNewResultLabel('');
     }
   }, [task]);
 
@@ -87,7 +79,7 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
   const handleSendApproval = useCallback(async () => {
     if (!task) return;
-    if (!task.title || !task.channel || !task.deadline || !task.assignees?.length) {
+    if (!task.title || !task.channels?.length || !task.deadline || !task.assignees?.length) {
       show('Vui lòng điền đầy đủ thông tin (tiêu đề, kênh, deadline, người phụ trách) trước khi gửi duyệt.', 'error');
       return;
     }
@@ -113,12 +105,8 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
   const handleSendResultApproval = useCallback(async () => {
     if (!task) return;
-    if (results.length === 0) {
-      show('Cần có ít nhất 1 kết quả trước khi gửi duyệt.', 'error');
-      return;
-    }
     await updateStatus('Chờ duyệt KQ');
-  }, [task, results, updateStatus, show]);
+  }, [task, updateStatus]);
 
   const handleApproveResult = useCallback(async () => {
     await updateStatus('Đã đăng');
@@ -138,56 +126,6 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     if (!window.confirm('Đưa về Bản nháp sẽ xóa trạng thái hoàn thành. Tiếp tục?')) return;
     await updateStatus('Bản nháp', { completed_at: null });
   }, [task, updateStatus]);
-
-  const handleAddResult = useCallback(async () => {
-    if (!task || !newResultValue.trim()) {
-      show('Vui lòng nhập giá trị kết quả.', 'error');
-      return;
-    }
-    setUpdating(true);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from('task_results')
-      .insert({
-        task_id: task.id,
-        type: newResultType,
-        value: newResultValue.trim(),
-        label: newResultLabel.trim() || RESULT_TYPES.find(r => r.value === newResultType)?.label || newResultType,
-        created_by: profile.id,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      show('Lỗi thêm kết quả: ' + error.message, 'error');
-    } else {
-      setResults(prev => [...prev, data as TaskResult]);
-      setNewResultValue('');
-      setNewResultLabel('');
-      setShowResultForm(false);
-      show('Đã thêm kết quả.', 'success');
-      await logActivity('add_result', `Thêm kết quả: ${newResultType}`, task.id);
-      onRefresh();
-    }
-    setUpdating(false);
-  }, [task, newResultType, newResultValue, newResultLabel, profile.id, show, logActivity, onRefresh]);
-
-  const handleDeleteResult = useCallback(async (resultId: string) => {
-    if (!window.confirm('Xóa kết quả này?')) return;
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('task_results')
-      .delete()
-      .eq('id', resultId);
-
-    if (error) {
-      show('Lỗi xóa kết quả: ' + error.message, 'error');
-    } else {
-      setResults(prev => prev.filter(r => r.id !== resultId));
-      show('Đã xóa kết quả.', 'success');
-      onRefresh();
-    }
-  }, [show, onRefresh]);
 
   const handleSaveDescription = useCallback(async () => {
     if (!task) return;
@@ -211,7 +149,6 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
   if (!task) return null;
 
   const statusColor = STATUS_COLORS[task.status] || '#9E9E9E';
-  const channelColor = getChannelColor(task.channel);
   const overdue = isOverdue(task.deadline) && !['Đã đăng'].includes(task.status);
 
   // Render action buttons based on role + status
@@ -338,9 +275,11 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
             {/* Badges row */}
             <div className="flex flex-wrap items-center gap-2 mb-3">
-              <span className="text-[11px] font-semibold text-white px-2.5 py-1 rounded" style={{ backgroundColor: channelColor }}>
-                {task.channel}
-              </span>
+              {(task.channels || []).map(ch => (
+                <span key={ch.id} className="text-[11px] font-semibold text-white px-2.5 py-1 rounded" style={{ backgroundColor: getChannelColor(ch.name) }}>
+                  {ch.name}
+                </span>
+              ))}
               <span className="text-[11px] font-semibold text-white px-2.5 py-1 rounded" style={{ backgroundColor: statusColor }}>
                 {task.status}
               </span>
@@ -395,7 +334,7 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
                   overdue ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
                 }`}>
                   <span>&#128197;</span>
-                  <span>{formatDateVN(task.deadline)}</span>
+                  <span>{formatDateTimeVN(task.deadline)}</span>
                   {overdue && <span>(Trễ!)</span>}
                 </div>
               )}
@@ -477,7 +416,7 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
               )}
             </div>
 
-            {/* ========== GROUP 2: BÁO CÁO KẾT QUẢ ========== */}
+            {/* ========== GROUP 2: BÁO CÁO KẾT QUẢ (per-editor submissions) ========== */}
             {['Đang làm', 'Chờ duyệt KQ', 'Đã đăng'].includes(task.status) && (
               <>
                 <div className="flex items-center gap-2 pt-3 pb-2">
@@ -489,79 +428,7 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
                 <div className="space-y-3 mb-2">
                   <section className="bg-white rounded-lg border border-gray-200 p-4">
-                    {results.length === 0 && !showResultForm ? (
-                      <div className="text-center py-4">
-                        <p className="text-sm text-gray-400 mb-2">Chưa có kết quả nào.</p>
-                        {(isAdmin || (isEditor && task.status === 'Đang làm')) && (
-                          <button onClick={() => setShowResultForm(true)} className="text-sm text-purple-600 hover:text-purple-700 font-medium">
-                            + Thêm kết quả
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                            Kết quả ({results.length})
-                          </h4>
-                          {!showResultForm && (isAdmin || (isEditor && task.status === 'Đang làm')) && (
-                            <button onClick={() => setShowResultForm(true)} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
-                              + Thêm
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="space-y-2">
-                          {results.map(r => {
-                            const typeInfo = RESULT_TYPES.find(rt => rt.value === r.type);
-                            return (
-                              <div key={r.id} className="flex items-start justify-between gap-2 p-2.5 rounded-md bg-gray-50 group">
-                                <div className="min-w-0 flex-1">
-                                  <span className="text-[11px] font-medium text-gray-500">
-                                    {typeInfo?.icon} {r.label || typeInfo?.label || r.type}
-                                  </span>
-                                  {r.type === 'link' || r.type === 'image' || r.type === 'video' || r.type === 'document' ? (
-                                    <a href={r.value} target="_blank" rel="noopener noreferrer" className="block text-sm text-blue-600 hover:underline break-all mt-0.5">
-                                      {r.value}
-                                    </a>
-                                  ) : (
-                                    <p className="text-sm text-gray-700 whitespace-pre-wrap mt-0.5">{r.value}</p>
-                                  )}
-                                </div>
-                                {(isAdmin || (isEditor && task.status === 'Đang làm')) && (
-                                  <button onClick={() => handleDeleteResult(r.id)} className="text-red-400 hover:text-red-600 text-sm shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" title="Xóa">
-                                    &times;
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Add result form */}
-                        {showResultForm && (
-                          <div className="mt-3 bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-2">
-                            <div className="flex gap-2">
-                              <select value={newResultType} onChange={e => setNewResultType(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-                                {RESULT_TYPES.map(rt => (
-                                  <option key={rt.value} value={rt.value}>{rt.icon} {rt.label}</option>
-                                ))}
-                              </select>
-                              <input type="text" value={newResultLabel} onChange={e => setNewResultLabel(e.target.value)} placeholder="Nhãn (tùy chọn)" className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                            </div>
-                            {newResultType === 'text' ? (
-                              <textarea value={newResultValue} onChange={e => setNewResultValue(e.target.value)} placeholder={RESULT_TYPES.find(r => r.value === newResultType)?.placeholder} rows={3} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                            ) : (
-                              <input type="text" value={newResultValue} onChange={e => setNewResultValue(e.target.value)} placeholder={RESULT_TYPES.find(r => r.value === newResultType)?.placeholder} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                            )}
-                            <div className="flex gap-2">
-                              <button onClick={handleAddResult} disabled={updating} className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50">Thêm</button>
-                              <button onClick={() => { setShowResultForm(false); setNewResultValue(''); setNewResultLabel(''); }} className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Hủy</button>
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
+                    <TaskSubmissions task={task} onRefresh={onRefresh} />
                   </section>
                 </div>
               </>

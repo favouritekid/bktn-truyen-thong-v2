@@ -24,7 +24,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
   const fieldsLocked = isEditing && LOCKED_STATUSES.includes(task.status as typeof LOCKED_STATUSES[number]);
 
   const [title, setTitle] = useState('');
-  const [channel, setChannel] = useState<string>('');
+  const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([]);
   const [contentType, setContentType] = useState<string>(CONTENT_TYPES[0]);
   const [priority, setPriority] = useState<string>(PRIORITIES[1]);
   const [deadline, setDeadline] = useState('');
@@ -94,20 +94,27 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
     loadCampaignChannels();
   }, [campaignId]);
 
-  // Handle campaign change - reset channel if not in new campaign's channels
+  // Handle campaign change - reset channels if not in new campaign's channels
   const handleCampaignChange = useCallback((newCampaignId: string) => {
     setCampaignId(newCampaignId);
-    setChannel(''); // Reset channel when campaign changes
+    setSelectedChannelIds([]); // Reset channels when campaign changes
   }, []);
+
+  const toggleChannel = useCallback((channelId: string) => {
+    if (fieldsLocked) return;
+    setSelectedChannelIds(prev =>
+      prev.includes(channelId) ? prev.filter(x => x !== channelId) : [...prev, channelId]
+    );
+  }, [fieldsLocked]);
 
   // Populate form when editing
   useEffect(() => {
     if (task) {
       setTitle(task.title || '');
-      setChannel(task.channel || '');
+      setSelectedChannelIds(task.channels?.map(c => c.id) || []);
       setContentType(task.content_type || CONTENT_TYPES[0]);
       setPriority(task.priority || PRIORITIES[1]);
-      setDeadline(task.deadline ? task.deadline.split('T')[0] : '');
+      setDeadline(task.deadline ? task.deadline.substring(0, 16) : '');
       setCampaignId(task.campaign_id || '');
       setDescription(task.description || '');
       setAdminNote(task.admin_note || '');
@@ -126,7 +133,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
     e.preventDefault();
 
     if (!title.trim()) { show('Vui lòng nhập tiêu đề.', 'error'); return; }
-    if (!channel) { show('Vui lòng chọn kênh.', 'error'); return; }
+    if (selectedChannelIds.length === 0) { show('Vui lòng chọn ít nhất 1 kênh.', 'error'); return; }
     if (!campaignId) { show('Vui lòng chọn chiến dịch.', 'error'); return; }
     if (!deadline) { show('Vui lòng chọn deadline.', 'error'); return; }
     if (selectedAssignees.length === 0) { show('Vui lòng chọn ít nhất một người phụ trách.', 'error'); return; }
@@ -143,7 +150,6 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
       // Only update non-locked fields, or all if not locked
       if (!fieldsLocked) {
         updates.title = title.trim();
-        updates.channel = channel;
         updates.campaign_id = campaignId;
         updates.content_type = contentType;
         updates.priority = priority;
@@ -167,19 +173,32 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
         return;
       }
 
-      // Update assignees (only if not locked)
+      // Update assignees and channels (only if not locked)
       if (!fieldsLocked) {
-        // Remove old
+        // Remove old assignees
         await supabase
           .from('task_assignees')
           .delete()
           .eq('task_id', task.id);
 
-        // Insert new (upsert to avoid conflict if delete was blocked by RLS)
+        // Insert new assignees
         if (selectedAssignees.length > 0) {
           await supabase
             .from('task_assignees')
             .upsert(selectedAssignees.map(uid => ({ task_id: task.id, user_id: uid })), { ignoreDuplicates: true });
+        }
+
+        // Remove old channels
+        await supabase
+          .from('task_channels')
+          .delete()
+          .eq('task_id', task.id);
+
+        // Insert new channels
+        if (selectedChannelIds.length > 0) {
+          await supabase
+            .from('task_channels')
+            .insert(selectedChannelIds.map(cid => ({ task_id: task.id, channel_id: cid })));
         }
       }
 
@@ -201,7 +220,6 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
         .insert({
           id: newId,
           title: title.trim(),
-          channel,
           campaign_id: campaignId,
           content_type: contentType,
           priority,
@@ -225,6 +243,13 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
           .insert(selectedAssignees.map(uid => ({ task_id: newId, user_id: uid })));
       }
 
+      // Insert channels
+      if (selectedChannelIds.length > 0) {
+        await supabase
+          .from('task_channels')
+          .insert(selectedChannelIds.map(cid => ({ task_id: newId, channel_id: cid })));
+      }
+
       // Log
       await supabase.from('activity_logs').insert({
         user_id: profile.id,
@@ -239,7 +264,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
     setSaving(false);
     onSaved();
     onClose();
-  }, [title, channel, campaignId, contentType, priority, deadline, description, adminNote, selectedAssignees, isEditing, fieldsLocked, isAdmin, task, profile.id, show, onSaved, onClose]);
+  }, [title, selectedChannelIds, campaignId, contentType, priority, deadline, description, adminNote, selectedAssignees, isEditing, fieldsLocked, isAdmin, task, profile.id, show, onSaved, onClose]);
 
   return (
     <>
@@ -294,39 +319,58 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
               </select>
             </div>
 
-            {/* Channel + Content Type row */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Kênh <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={channel}
-                  onChange={e => setChannel(e.target.value)}
-                  disabled={fieldsLocked || !campaignId}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                >
-                  <option value="">{campaignId ? (campaignChannels.length === 0 ? 'Chiến dịch chưa có kênh' : '-- Chọn kênh --') : '-- Chọn chiến dịch trước --'}</option>
+            {/* Channel (multi-select) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Kênh truyền thông <span className="text-red-500">*</span>
+              </label>
+              {!campaignId ? (
+                <p className="text-sm text-gray-400 italic border border-gray-200 rounded-lg px-3 py-2">Chọn chiến dịch trước</p>
+              ) : campaignChannels.length === 0 ? (
+                <p className="text-sm text-gray-400 italic border border-gray-200 rounded-lg px-3 py-2">Chiến dịch chưa có kênh</p>
+              ) : (
+                <div className="border border-gray-300 rounded-lg p-2 flex flex-wrap gap-2">
                   {campaignChannels.map(c => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
+                    <label
+                      key={c.id}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md cursor-pointer text-sm transition-colors border ${
+                        selectedChannelIds.includes(c.id)
+                          ? 'bg-blue-50 border-blue-300 text-blue-700'
+                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                      } ${fieldsLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedChannelIds.includes(c.id)}
+                        onChange={() => toggleChannel(c.id)}
+                        disabled={fieldsLocked}
+                        className="accent-blue-600"
+                      />
+                      {c.name}
+                    </label>
                   ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Loại nội dung
-                </label>
-                <select
-                  value={contentType}
-                  onChange={e => setContentType(e.target.value)}
-                  disabled={fieldsLocked}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                >
-                  {CONTENT_TYPES.map(ct => (
-                    <option key={ct} value={ct}>{ct}</option>
-                  ))}
-                </select>
-              </div>
+                </div>
+              )}
+              {selectedChannelIds.length > 0 && (
+                <p className="text-xs text-gray-500 mt-1">Đã chọn: {selectedChannelIds.length} kênh</p>
+              )}
+            </div>
+
+            {/* Content Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Loại nội dung
+              </label>
+              <select
+                value={contentType}
+                onChange={e => setContentType(e.target.value)}
+                disabled={fieldsLocked}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              >
+                {CONTENT_TYPES.map(ct => (
+                  <option key={ct} value={ct}>{ct}</option>
+                ))}
+              </select>
             </div>
 
             {/* Priority + Deadline row */}
@@ -349,7 +393,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
                   Deadline <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="date"
+                  type="datetime-local"
                   value={deadline}
                   onChange={e => setDeadline(e.target.value)}
                   disabled={fieldsLocked}

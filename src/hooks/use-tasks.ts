@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { Campaign, Profile, Task, TaskResult } from '@/lib/types';
+import type { Campaign, Channel, Profile, Task, TaskResult } from '@/lib/types';
 
 interface UseTasksOptions {
   profileId: string;
@@ -18,11 +18,14 @@ interface RawCampaign {
   status: string;
 }
 
+interface RawTaskChannel {
+  channels: Channel | Channel[];
+}
+
 interface RawTaskRow {
   id: string;
   title: string;
   description: string;
-  channel: string;
   content_type: string | null;
   campaign_id: string | null;
   status: string;
@@ -33,6 +36,7 @@ interface RawTaskRow {
   created_by: string;
   created_at: string;
   updated_at: string;
+  task_channels: RawTaskChannel[];
   task_assignees: { profiles: Profile | Profile[] }[];
   task_results: TaskResult[];
   creator: Profile | Profile[];
@@ -47,20 +51,17 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
     const supabase = createClient();
     setLoading(true);
 
-    let query = supabase
+    const query = supabase
       .from('tasks')
       .select(`
-        id, title, description, channel, content_type, campaign_id, status, priority, deadline, completed_at, admin_note, created_by, created_at, updated_at,
+        id, title, description, content_type, campaign_id, status, priority, deadline, completed_at, admin_note, created_by, created_at, updated_at,
+        task_channels!left(channels:channels(id, name, description, status, created_at, updated_at)),
         task_assignees!left(profiles!inner(id, email, full_name, role, is_active, created_at, updated_at)),
         task_results!left(id, task_id, type, value, label, created_at, created_by),
         creator:profiles!tasks_created_by_fkey(id, email, full_name, role, is_active, created_at, updated_at),
         campaign:campaigns!left(id, code, name, status)
       `)
       .order('created_at', { ascending: false });
-
-    if (channelFilter) {
-      query = query.eq('channel', channelFilter);
-    }
 
     const { data, error } = await query;
 
@@ -78,6 +79,13 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         })
         .filter(Boolean);
 
+      const channels: Channel[] = (row.task_channels || [])
+        .map((tc: RawTaskChannel) => {
+          if (Array.isArray(tc.channels)) return tc.channels[0];
+          return tc.channels;
+        })
+        .filter(Boolean) as Channel[];
+
       const creator = Array.isArray(row.creator) ? row.creator[0] : row.creator;
       const campaign = Array.isArray(row.campaign) ? row.campaign[0] : row.campaign;
 
@@ -85,7 +93,6 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         id: row.id,
         title: row.title,
         description: row.description,
-        channel: row.channel,
         content_type: row.content_type,
         campaign_id: row.campaign_id,
         status: row.status,
@@ -96,6 +103,7 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         created_by: row.created_by,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        channels,
         assignees,
         results: row.task_results || [],
         creator,
@@ -117,6 +125,13 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
       );
     }
 
+    // Filter by channel
+    if (channelFilter) {
+      processed = processed.filter(t =>
+        t.channels?.some(c => c.name === channelFilter)
+      );
+    }
+
     setTasks(processed);
     setLoading(false);
   }, [profileId, role, channelFilter, assigneeFilter]);
@@ -129,9 +144,12 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
   useEffect(() => {
     const supabase = createClient();
 
-    const channel = supabase
+    const realtimeChannel = supabase
       .channel('tasks-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        fetchTasks();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_channels' }, () => {
         fetchTasks();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, () => {
@@ -152,7 +170,7 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(realtimeChannel);
     };
   }, [fetchTasks]);
 

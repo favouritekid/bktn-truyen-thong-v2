@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { LOCKED_STATUSES } from '@/lib/constants';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
-import type { Task, TaskChecklist as TaskChecklistItem } from '@/lib/types';
+import type { Profile, Task, TaskChecklist as TaskChecklistItem } from '@/lib/types';
 
 interface TaskChecklistProps {
   task: Task;
@@ -17,21 +18,35 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
   const [items, setItems] = useState<TaskChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState('');
+  const [newAssigneeId, setNewAssigneeId] = useState<string>('');
   const [adding, setAdding] = useState(false);
 
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
+  const isLocked = LOCKED_STATUSES.includes(task.status as typeof LOCKED_STATUSES[number]);
   const editableStatuses = ['Bản nháp', 'Đã duyệt', 'Đang làm'];
-  const canEdit = isAdmin || (isAssignee && editableStatuses.includes(task.status));
+  // Who can add/delete/edit checklist items
+  const canEditStructure = isAdmin || (!isLocked && isAssignee && editableStatuses.includes(task.status));
+  // Who can change assignee: before admin confirms = task creator; after = admin only
+  const canChangeAssignee = isAdmin || (!isLocked && isAssignee);
 
   const fetchItems = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
       .from('task_checklists')
-      .select('id, task_id, title, is_checked, sort_order, created_by, created_at, updated_at')
+      .select(`
+        id, task_id, title, is_checked, sort_order, assignee_user_id, created_by, created_at, updated_at,
+        assignee:profiles!task_checklists_assignee_user_id_fkey(id, full_name, email, role, is_active, created_at, updated_at)
+      `)
       .eq('task_id', task.id)
       .order('sort_order');
-    setItems((data as TaskChecklistItem[]) || []);
+
+    const processed = ((data || []) as unknown as (TaskChecklistItem & { assignee: Profile | Profile[] | null })[]).map(row => ({
+      ...row,
+      assignee: Array.isArray(row.assignee) ? row.assignee[0] : row.assignee,
+    }));
+
+    setItems(processed as TaskChecklistItem[]);
     setLoading(false);
   }, [task.id]);
 
@@ -81,6 +96,7 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
       task_id: task.id,
       title: newTitle.trim(),
       sort_order: totalCount,
+      assignee_user_id: newAssigneeId || null,
       created_by: profile.id,
     });
 
@@ -88,11 +104,23 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
       show('Lỗi thêm checklist: ' + error.message, 'error');
     } else {
       setNewTitle('');
+      setNewAssigneeId('');
       await logActivity('add_checklist', `Thêm checklist: ${newTitle.trim()}`);
       onRefresh();
     }
     setAdding(false);
-  }, [newTitle, task.id, totalCount, profile.id, show, logActivity, onRefresh]);
+  }, [newTitle, newAssigneeId, task.id, totalCount, profile.id, show, logActivity, onRefresh]);
+
+  // Can this user toggle this specific item?
+  const canToggleItem = useCallback((item: TaskChecklistItem) => {
+    if (isAdmin) return true;
+    // If item has an assignee, only that assignee can tick
+    if (item.assignee_user_id) {
+      return item.assignee_user_id === profile.id;
+    }
+    // No assignee: any task assignee can tick
+    return isAssignee && editableStatuses.includes(task.status);
+  }, [isAdmin, profile.id, isAssignee, task.status]);
 
   const handleToggle = useCallback(async (itemId: string, currentChecked: boolean) => {
     const supabase = createClient();
@@ -126,6 +154,23 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
     }
   }, [items, show, logActivity, onRefresh]);
 
+  const handleAssigneeChange = useCallback(async (itemId: string, userId: string | null) => {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('task_checklists')
+      .update({ assignee_user_id: userId })
+      .eq('id', itemId);
+
+    if (error) {
+      show('Lỗi gán người: ' + error.message, 'error');
+    } else {
+      const item = items.find(i => i.id === itemId);
+      const assignee = task.assignees?.find(a => a.id === userId);
+      await logActivity('assign_checklist', `Gán "${item?.title}" cho ${assignee?.full_name || 'không ai'}`);
+      onRefresh();
+    }
+  }, [items, task.assignees, show, logActivity, onRefresh]);
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -134,6 +179,8 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
   }, [handleAdd]);
 
   if (loading) return null;
+
+  const taskAssignees = task.assignees || [];
 
   return (
     <div>
@@ -156,33 +203,54 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
 
       {/* Items */}
       <div className="space-y-1">
-        {items.map(item => (
-          <div key={item.id} className="flex items-center gap-2 group rounded-md px-2 py-1.5 hover:bg-gray-50">
-            <input
-              type="checkbox"
-              checked={item.is_checked}
-              onChange={() => canEdit && handleToggle(item.id, item.is_checked)}
-              disabled={!canEdit}
-              className="accent-blue-600 shrink-0"
-            />
-            <span className={`text-sm flex-1 ${item.is_checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-              {item.title}
-            </span>
-            {canEdit && (
-              <button
-                onClick={() => handleDelete(item.id)}
-                className="text-red-400 hover:text-red-600 text-sm opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                title="Xóa"
-              >
-                &times;
-              </button>
-            )}
-          </div>
-        ))}
+        {items.map(item => {
+          const toggleable = canToggleItem(item);
+          return (
+            <div key={item.id} className="flex items-center gap-2 group rounded-md px-2 py-1.5 hover:bg-gray-50">
+              <input
+                type="checkbox"
+                checked={item.is_checked}
+                onChange={() => toggleable && handleToggle(item.id, item.is_checked)}
+                disabled={!toggleable}
+                className="accent-blue-600 shrink-0"
+              />
+              <span className={`text-sm flex-1 ${item.is_checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                {item.title}
+              </span>
+              {/* Assignee badge or select */}
+              {canChangeAssignee ? (
+                <select
+                  value={item.assignee_user_id || ''}
+                  onChange={e => handleAssigneeChange(item.id, e.target.value || null)}
+                  className="text-[10px] border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-500 max-w-[90px] truncate opacity-60 group-hover:opacity-100 transition-opacity"
+                  title="Gán người thực hiện"
+                >
+                  <option value="">--</option>
+                  {taskAssignees.map(a => (
+                    <option key={a.id} value={a.id}>{a.full_name}</option>
+                  ))}
+                </select>
+              ) : item.assignee ? (
+                <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded max-w-[90px] truncate" title={item.assignee.full_name}>
+                  {item.assignee.full_name}
+                </span>
+              ) : null}
+              {canEditStructure && (
+                <button
+                  onClick={() => handleDelete(item.id)}
+                  className="text-red-400 hover:text-red-600 text-sm opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                  title="Xóa"
+                >
+                  &times;
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Add new item */}
-      {canEdit && (
+      {canEditStructure && (
         <div className="flex items-center gap-2 mt-2">
           <input
             type="text"
@@ -192,6 +260,17 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
             placeholder="Thêm mục mới..."
             className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          <select
+            value={newAssigneeId}
+            onChange={e => setNewAssigneeId(e.target.value)}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[120px]"
+            title="Gán cho"
+          >
+            <option value="">Gán cho...</option>
+            {taskAssignees.map(a => (
+              <option key={a.id} value={a.id}>{a.full_name}</option>
+            ))}
+          </select>
           <button
             onClick={handleAdd}
             disabled={adding || !newTitle.trim()}
@@ -202,7 +281,7 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
         </div>
       )}
 
-      {totalCount === 0 && !canEdit && (
+      {totalCount === 0 && !canEditStructure && (
         <p className="text-sm text-gray-400 italic">Chưa có checklist.</p>
       )}
     </div>
