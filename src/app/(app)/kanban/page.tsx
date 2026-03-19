@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { STATUSES, STATUS_COLORS } from '@/lib/constants';
 import { useChannels } from '@/hooks/use-channels';
@@ -61,11 +61,24 @@ export default function KanbanPage() {
     return map;
   }, [tasks]);
 
+  // Keep selectedTask in sync with realtime data
+  const selectedTaskRef = useRef<Task | null>(null);
+  useEffect(() => {
+    if (selectedTaskRef.current) {
+      const updated = tasks.find(t => t.id === selectedTaskRef.current!.id);
+      if (updated) {
+        setSelectedTask(updated);
+      }
+    }
+  }, [tasks]);
+
   const openDrawer = useCallback((task: Task) => {
+    selectedTaskRef.current = task;
     setSelectedTask(task);
   }, []);
 
   const closeDrawer = useCallback(() => {
+    selectedTaskRef.current = null;
     setSelectedTask(null);
   }, []);
 

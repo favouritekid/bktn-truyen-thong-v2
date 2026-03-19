@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { STATUSES, STATUS_COLORS, CHANNEL_COLORS } from '@/lib/constants';
 import { useChannels } from '@/hooks/use-channels';
 import { formatDateTimeVN, isOverdue, isDueSoon, isAdminOrAbove } from '@/lib/utils';
@@ -63,9 +63,19 @@ export default function DashboardPage() {
   const completedCount = stats.byStatus['Đã đăng'] || 0;
   const inProgressCount = stats.total - completedCount;
 
-  const openDrawer = useCallback((task: Task) => setSelectedTask(task), []);
-  const closeDrawer = useCallback(() => setSelectedTask(null), []);
+  // Keep selectedTask in sync with realtime data
+  const selectedTaskRef = useRef<Task | null>(null);
+  useEffect(() => {
+    if (selectedTaskRef.current) {
+      const updated = tasks.find(t => t.id === selectedTaskRef.current!.id);
+      if (updated) setSelectedTask(updated);
+    }
+  }, [tasks]);
+
+  const openDrawer = useCallback((task: Task) => { selectedTaskRef.current = task; setSelectedTask(task); }, []);
+  const closeDrawer = useCallback(() => { selectedTaskRef.current = null; setSelectedTask(null); }, []);
   const openEditForm = useCallback((task: Task) => {
+    selectedTaskRef.current = null;
     setSelectedTask(null);
     setFormTask(task);
   }, []);

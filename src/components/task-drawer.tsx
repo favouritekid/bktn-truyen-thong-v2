@@ -60,6 +60,22 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     }
   }, [task, checkChecklistCompletion]);
 
+  // Realtime: re-check checklist completion when checklists or submissions change
+  useEffect(() => {
+    if (!task) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`drawer-status-${task.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_checklists', filter: `task_id=eq.${task.id}` }, () => {
+        checkChecklistCompletion(task.id);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_member_submissions', filter: `task_id=eq.${task.id}` }, () => {
+        checkChecklistCompletion(task.id);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [task, checkChecklistCompletion]);
+
   const handleRefresh = useCallback(() => {
     onRefresh();
     if (task) checkChecklistCompletion(task.id);
