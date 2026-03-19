@@ -37,7 +37,7 @@ interface RawTaskRow {
   created_at: string;
   updated_at: string;
   task_channels: RawTaskChannel[];
-  task_assignees: { profiles: Profile | Profile[] }[];
+  task_assignees: { user: Profile | Profile[] | null }[];
   task_results: TaskResult[];
   creator: Profile | Profile[];
   campaign: RawCampaign | RawCampaign[] | null;
@@ -56,7 +56,7 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
       .select(`
         id, title, description, content_type, campaign_id, status, priority, deadline, completed_at, admin_note, created_by, created_at, updated_at,
         task_channels!left(channels:channels(id, name, description, status, created_at, updated_at)),
-        task_assignees!left(profiles!inner(id, email, full_name, role, is_active, created_at, updated_at)),
+        task_assignees!left(user:profiles!task_assignees_user_id_fkey(id, email, full_name, role, is_active, created_at, updated_at)),
         task_results!left(id, task_id, type, value, label, created_at, created_by),
         creator:profiles!tasks_created_by_fkey(id, email, full_name, role, is_active, created_at, updated_at),
         campaign:campaigns!left(id, code, name, status)
@@ -73,11 +73,12 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
 
     let processed: Task[] = (data as unknown as RawTaskRow[] || []).map(row => {
       const assignees: Profile[] = (row.task_assignees || [])
-        .map((ta: { profiles: Profile | Profile[] }) => {
-          if (Array.isArray(ta.profiles)) return ta.profiles[0];
-          return ta.profiles;
+        .map((ta: { user: Profile | Profile[] | null }) => {
+          if (!ta.user) return null;
+          if (Array.isArray(ta.user)) return ta.user[0];
+          return ta.user;
         })
-        .filter(Boolean);
+        .filter(Boolean) as Profile[];
 
       const channels: Channel[] = (row.task_channels || [])
         .map((tc: RawTaskChannel) => {

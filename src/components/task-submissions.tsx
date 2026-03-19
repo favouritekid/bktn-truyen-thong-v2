@@ -36,6 +36,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
   const profile = useProfile();
   const { show } = useToast();
   const [submissions, setSubmissions] = useState<TaskMemberSubmission[]>([]);
+  const [assigneeCount, setAssigneeCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [linkLabels, setLinkLabels] = useState<LinkLabel[]>([]);
 
@@ -65,6 +66,14 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
 
   const fetchSubmissions = useCallback(async () => {
     const supabase = createClient();
+
+    // Count assignees directly from task_assignees table
+    const { count } = await supabase
+      .from('task_assignees')
+      .select('*', { count: 'exact', head: true })
+      .eq('task_id', task.id);
+    setAssigneeCount(count || 0);
+
     const { data } = await supabase
       .from('task_member_submissions')
       .select(`
@@ -223,7 +232,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     onRefresh();
   }, [submissionNote, submissionLinks, submissions, profile.id, task.id, show, fetchSubmissions, onRefresh]);
 
-  const totalAssignees = task.assignees?.length || 0;
+  const totalAssignees = assigneeCount;
   const submittedCount = submissions.length;
   const allSubmitted = totalAssignees > 0 && submittedCount >= totalAssignees;
   const isCreator = task.created_by === profile.id;
