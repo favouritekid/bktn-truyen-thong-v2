@@ -63,16 +63,9 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
         </div>
 
         {/* Title */}
-        <h4 className="text-[13px] font-medium text-gray-800 leading-snug line-clamp-2 mb-1.5">
+        <h4 className="text-[13px] font-medium text-gray-800 leading-snug line-clamp-2 mb-2">
           {task.title}
         </h4>
-
-        {/* Creator */}
-        {task.creator && (
-          <p className="text-[10px] text-gray-400 mb-2">
-            Tạo bởi: {task.creator.full_name}
-          </p>
-        )}
 
         {/* Badges + Avatars row */}
         <div className="flex items-center justify-between gap-2">
@@ -96,14 +89,13 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
               </span>
             )}
 
-            {/* Results badge */}
-            {resultCount > 0 && (
+            {/* Creator badge */}
+            {task.creator && (
               <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-                {resultCount}
+                {task.creator.full_name}
               </span>
             )}
 
