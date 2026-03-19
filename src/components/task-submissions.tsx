@@ -40,8 +40,8 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
   const [loading, setLoading] = useState(true);
   const [linkLabels, setLinkLabels] = useState<LinkLabel[]>([]);
 
-  // Form state for current editor's submission
-  const [editingSubmission, setEditingSubmission] = useState(false);
+  // Which submission card is being edited (by user_id)
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [submissionNote, setSubmissionNote] = useState('');
   const [submissionLinks, setSubmissionLinks] = useState<{ labelId: string; url: string; note: string }[]>([]);
   const [saving, setSaving] = useState(false);
@@ -67,7 +67,6 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
   const fetchSubmissions = useCallback(async () => {
     const supabase = createClient();
 
-    // Count assignees directly from task_assignees table
     const { count } = await supabase
       .from('task_assignees')
       .select('*', { count: 'exact', head: true })
@@ -124,20 +123,28 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     };
   }, [task.id, fetchSubmissions]);
 
-  // Start editing my submission
-  const startEditing = useCallback(() => {
-    const mySubmission = submissions.find(s => s.user_id === profile.id);
-    if (mySubmission) {
-      setSubmissionNote(mySubmission.note || '');
+  // Start editing a specific submission card (inline)
+  const startEditing = useCallback((userId: string) => {
+    const sub = submissions.find(s => s.user_id === userId);
+    if (sub) {
+      setSubmissionNote(sub.note || '');
       setSubmissionLinks(
-        (mySubmission.links || []).map(l => ({ labelId: l.label_id || '', url: l.url, note: l.note }))
+        (sub.links || []).length > 0
+          ? (sub.links || []).map(l => ({ labelId: l.label_id || '', url: l.url, note: l.note }))
+          : [{ labelId: '', url: '', note: '' }]
       );
     } else {
       setSubmissionNote('');
       setSubmissionLinks([{ labelId: '', url: '', note: '' }]);
     }
-    setEditingSubmission(true);
-  }, [submissions, profile.id]);
+    setEditingUserId(userId);
+  }, [submissions]);
+
+  const cancelEditing = useCallback(() => {
+    setEditingUserId(null);
+    setSubmissionNote('');
+    setSubmissionLinks([]);
+  }, []);
 
   const addLinkRow = useCallback(() => {
     setSubmissionLinks(prev => [...prev, { labelId: '', url: '', note: '' }]);
@@ -161,17 +168,14 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     setSaving(true);
     const supabase = createClient();
 
-    // Check if there's an existing submission for this user+task
     const existingSubmission = submissions.find(s => s.user_id === profile.id);
 
     if (existingSubmission) {
-      // Update existing
       await supabase
         .from('task_member_submissions')
         .update({ note: submissionNote.trim(), updated_at: new Date().toISOString() })
         .eq('id', existingSubmission.id);
 
-      // Delete old links and re-insert
       await supabase
         .from('task_member_submission_links')
         .delete()
@@ -188,7 +192,6 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
           })));
       }
     } else {
-      // Create new
       const { data: newSub, error } = await supabase
         .from('task_member_submissions')
         .insert({
@@ -217,7 +220,6 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       }
     }
 
-    // Log activity
     await supabase.from('activity_logs').insert({
       user_id: profile.id,
       action: 'submit_result',
@@ -226,7 +228,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     });
 
     show('Đã nộp kết quả.', 'success');
-    setEditingSubmission(false);
+    setEditingUserId(null);
     setSaving(false);
     fetchSubmissions();
     onRefresh();
@@ -240,17 +242,149 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
 
   if (loading) return null;
 
+  // Inline edit form rendered inside a card
+  const renderEditForm = () => (
+    <div className="space-y-3">
+      <div>
+        <label className="text-xs font-medium text-gray-600 mb-1 block">Ghi chú</label>
+        <textarea
+          value={submissionNote}
+          onChange={e => setSubmissionNote(e.target.value)}
+          rows={2}
+          placeholder="Ghi chú về kết quả..."
+          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          autoFocus
+        />
+      </div>
+      <div>
+        <label className="text-xs font-medium text-gray-600 mb-1 block">Link kết quả</label>
+        <div className="space-y-2">
+          {submissionLinks.map((link, idx) => (
+            <div key={idx} className="flex gap-2 items-start">
+              <select
+                value={link.labelId}
+                onChange={e => updateLinkRow(idx, 'labelId', e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 w-[120px] shrink-0"
+              >
+                <option value="">Nhãn...</option>
+                {linkLabels.map(ll => (
+                  <option key={ll.id} value={ll.id}>{ll.name}</option>
+                ))}
+              </select>
+              <input
+                type="url"
+                value={link.url}
+                onChange={e => updateLinkRow(idx, 'url', e.target.value)}
+                placeholder="https://..."
+                className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <input
+                type="text"
+                value={link.note}
+                onChange={e => updateLinkRow(idx, 'note', e.target.value)}
+                placeholder="Mô tả"
+                className="w-[100px] border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              {submissionLinks.length > 1 && (
+                <button onClick={() => removeLinkRow(idx)} className="text-red-400 hover:text-red-600 text-sm shrink-0 py-1.5">&times;</button>
+              )}
+            </div>
+          ))}
+          <button onClick={addLinkRow} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
+            + Thêm link
+          </button>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={handleSubmit} disabled={saving} className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50">
+          {saving ? 'Đang lưu...' : 'Lưu'}
+        </button>
+        <button onClick={cancelEditing} className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">
+          Hủy
+        </button>
+      </div>
+    </div>
+  );
+
+  // Render a single submission card
+  const renderSubmissionCard = (sub: TaskMemberSubmission) => {
+    const isMyCard = sub.user_id === profile.id;
+    const isEditingThis = editingUserId === sub.user_id;
+    const canEditThis = isMyCard && canSubmit;
+
+    return (
+      <div
+        key={sub.id}
+        className={`rounded-lg border p-3 transition-all ${
+          isEditingThis
+            ? 'border-purple-300 bg-purple-50 ring-1 ring-purple-200'
+            : isMyCard
+              ? 'border-purple-200 bg-purple-50/50'
+              : 'border-gray-200 bg-gray-50'
+        }`}
+      >
+        {/* Card header */}
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-bold text-gray-700">
+            {sub.user?.full_name || 'Unknown'}
+            {isMyCard && <span className="text-purple-500 ml-1">(Bạn)</span>}
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-400">
+              {new Date(sub.updated_at || sub.submitted_at).toLocaleDateString('vi-VN')}
+            </span>
+            {canEditThis && !isEditingThis && (
+              <button
+                onClick={() => startEditing(sub.user_id)}
+                className="text-gray-400 hover:text-purple-600 transition-colors"
+                title="Chỉnh sửa"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Show form if editing this card, otherwise show content */}
+        {isEditingThis ? (
+          renderEditForm()
+        ) : (
+          <>
+            {sub.note && (
+              <p className="text-sm text-gray-600 mb-2 whitespace-pre-wrap">{sub.note}</p>
+            )}
+            {sub.links && sub.links.length > 0 && (
+              <div className="space-y-1">
+                {sub.links.map(link => (
+                  <div key={link.id} className="flex items-center gap-2 text-sm">
+                    <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">
+                      {link.link_label?.name || 'Link'}
+                    </span>
+                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all truncate">
+                      {link.url}
+                    </a>
+                    {link.note && <span className="text-gray-400 text-xs shrink-0">({link.note})</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {!sub.note && (!sub.links || sub.links.length === 0) && (
+              <p className="text-sm text-gray-400 italic">Chưa có nội dung.</p>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide">
           Kết quả ({submittedCount}/{totalAssignees} editor đã nộp)
         </h4>
-        {canSubmit && !editingSubmission && (
-          <button onClick={startEditing} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
-            {mySubmission ? 'Cập nhật kết quả' : '+ Nộp kết quả'}
-          </button>
-        )}
       </div>
 
       {/* Progress indicator */}
@@ -266,109 +400,48 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         </div>
       )}
 
-      {/* Editor submission form */}
-      {editingSubmission && (
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-3 mb-3">
-          <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Ghi chú</label>
-            <textarea
-              value={submissionNote}
-              onChange={e => setSubmissionNote(e.target.value)}
-              rows={2}
-              placeholder="Ghi chú về kết quả..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Link kết quả</label>
-            <div className="space-y-2">
-              {submissionLinks.map((link, idx) => (
-                <div key={idx} className="flex gap-2 items-start">
-                  <select
-                    value={link.labelId}
-                    onChange={e => updateLinkRow(idx, 'labelId', e.target.value)}
-                    className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 w-[120px] shrink-0"
-                  >
-                    <option value="">Nhãn...</option>
-                    {linkLabels.map(ll => (
-                      <option key={ll.id} value={ll.id}>{ll.name}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="url"
-                    value={link.url}
-                    onChange={e => updateLinkRow(idx, 'url', e.target.value)}
-                    placeholder="https://..."
-                    className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                  <input
-                    type="text"
-                    value={link.note}
-                    onChange={e => updateLinkRow(idx, 'note', e.target.value)}
-                    placeholder="Mô tả"
-                    className="w-[100px] border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                  {submissionLinks.length > 1 && (
-                    <button onClick={() => removeLinkRow(idx)} className="text-red-400 hover:text-red-600 text-sm shrink-0 py-1.5">&times;</button>
-                  )}
-                </div>
-              ))}
-              <button onClick={addLinkRow} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
-                + Thêm link
-              </button>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={handleSubmit} disabled={saving} className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50">
-              {saving ? 'Đang lưu...' : 'Nộp kết quả'}
+      {/* Submissions list */}
+      {submissions.length === 0 ? (
+        <div className="text-center py-4">
+          <p className="text-sm text-gray-400 mb-2">Chưa có editor nào nộp kết quả.</p>
+          {canSubmit && (
+            <button
+              onClick={() => startEditing(profile.id)}
+              className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+            >
+              + Nộp kết quả
             </button>
-            <button onClick={() => setEditingSubmission(false)} className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">
-              Hủy
-            </button>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* Display all submissions */}
-      {submissions.length === 0 && !editingSubmission ? (
-        <p className="text-sm text-gray-400 text-center py-3">Chưa có editor nào nộp kết quả.</p>
       ) : (
         <div className="space-y-3">
-          {submissions.map(sub => (
-            <div key={sub.id} className={`rounded-lg border p-3 ${sub.user_id === profile.id ? 'border-purple-200 bg-purple-50/50' : 'border-gray-200 bg-gray-50'}`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-gray-700">
-                  {sub.user?.full_name || 'Unknown'}
-                  {sub.user_id === profile.id && <span className="text-purple-500 ml-1">(Bạn)</span>}
-                </span>
-                <span className="text-[10px] text-gray-400">
-                  {new Date(sub.updated_at || sub.submitted_at).toLocaleDateString('vi-VN')}
-                </span>
-              </div>
-              {sub.note && (
-                <p className="text-sm text-gray-600 mb-2 whitespace-pre-wrap">{sub.note}</p>
-              )}
-              {sub.links && sub.links.length > 0 && (
-                <div className="space-y-1">
-                  {sub.links.map(link => (
-                    <div key={link.id} className="flex items-center gap-2 text-sm">
-                      <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">
-                        {link.link_label?.name || 'Link'}
-                      </span>
-                      <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all truncate">
-                        {link.url}
-                      </a>
-                      {link.note && <span className="text-gray-400 text-xs shrink-0">({link.note})</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+          {submissions.map(sub => renderSubmissionCard(sub))}
+
+          {/* Button to create new submission if current user hasn't submitted yet */}
+          {canSubmit && !mySubmission && !editingUserId && (
+            <button
+              onClick={() => startEditing(profile.id)}
+              className="w-full rounded-lg border-2 border-dashed border-purple-300 p-3 text-sm text-purple-600 hover:bg-purple-50 hover:border-purple-400 transition-colors font-medium"
+            >
+              + Nộp kết quả của bạn
+            </button>
+          )}
         </div>
       )}
 
-      {/* Info: all submitted status */}
+      {/* If editing a new submission (not yet in list) */}
+      {editingUserId === profile.id && !mySubmission && submissions.length > 0 && (
+        <div className="mt-3 rounded-lg border border-purple-300 bg-purple-50 ring-1 ring-purple-200 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-gray-700">
+              {profile.full_name} <span className="text-purple-500">(Bạn)</span>
+            </span>
+          </div>
+          {renderEditForm()}
+        </div>
+      )}
+
+      {/* All submitted notice */}
       {allSubmitted && !isAdmin && isCreator && ['Đang làm'].includes(task.status) && (
         <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 text-center">
           <p className="text-sm text-green-700 font-medium">
