@@ -563,10 +563,14 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         </div>
       )}
 
-      {allSubmitted && !isAdmin && isCreator && isWorkingStatus && (
+      {allSubmitted && isWorkingStatus && (
         <div className="mt-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-center">
           <p className="text-xs text-green-700 font-medium">
-            Tất cả editor đã nộp. Bạn có thể gửi duyệt.
+            {isCreator
+              ? 'Tất cả editor đã nộp. Bạn có thể gửi duyệt.'
+              : isAdmin
+                ? 'Tất cả editor đã nộp kết quả.'
+                : 'Tất cả editor đã nộp. Đang chờ người tạo task gửi duyệt.'}
           </p>
         </div>
       )}
