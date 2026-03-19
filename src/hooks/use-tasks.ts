@@ -146,7 +146,7 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
     const supabase = createClient();
 
     const realtimeChannel = supabase
-      .channel('tasks-realtime')
+      .channel(`tasks-realtime-${profileId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
         fetchTasks();
       })
