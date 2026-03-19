@@ -11,6 +11,15 @@ interface TaskSubmissionsProps {
   onRefresh: () => void;
 }
 
+// Per-checklist-item entry in the edit form
+interface ChecklistEntry {
+  checklistItemId: string;
+  title: string;
+  url: string;
+  labelId: string;
+  note: string;
+}
+
 interface RawSubmission {
   id: string;
   task_id: string;
@@ -25,11 +34,13 @@ interface RawSubmission {
 interface RawSubmissionLink {
   id: string;
   submission_id: string;
+  checklist_item_id: string | null;
   label_id: string | null;
   url: string;
   note: string;
   created_at: string;
   link_label: LinkLabel | LinkLabel[] | null;
+  checklist_item: { id: string; title: string } | { id: string; title: string }[] | null;
 }
 
 export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProps) {
@@ -42,9 +53,8 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
 
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [submissionNote, setSubmissionNote] = useState('');
-  const [submissionLinks, setSubmissionLinks] = useState<{ labelId: string; url: string; note: string }[]>([]);
+  const [checklistEntries, setChecklistEntries] = useState<ChecklistEntry[]>([]);
   const [saving, setSaving] = useState(false);
-  const [myChecklistItems, setMyChecklistItems] = useState<TaskChecklist[]>([]);
 
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
@@ -78,7 +88,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       .select(`
         id, task_id, user_id, note, submitted_at, updated_at,
         user:profiles!task_member_submissions_user_id_fkey(id, full_name, email, role),
-        task_member_submission_links(id, submission_id, label_id, url, note, created_at, link_label:link_labels(id, name, is_active, created_at, updated_at))
+        task_member_submission_links(id, submission_id, checklist_item_id, label_id, url, note, created_at, link_label:link_labels(id, name, is_active, created_at, updated_at), checklist_item:task_checklists(id, title))
       `)
       .eq('task_id', task.id)
       .order('submitted_at', { ascending: true });
@@ -94,6 +104,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       links: (row.task_member_submission_links || []).map((l: RawSubmissionLink) => ({
         ...l,
         link_label: Array.isArray(l.link_label) ? l.link_label[0] : l.link_label,
+        checklist_item: Array.isArray(l.checklist_item) ? l.checklist_item[0] : l.checklist_item,
       })),
     }));
 
@@ -113,63 +124,58 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     return () => { supabase.removeChannel(channel); };
   }, [task.id, fetchSubmissions]);
 
-  const fetchMyChecklist = useCallback(async () => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from('task_checklists')
-      .select('id, task_id, title, is_checked, sort_order, assignee_user_id, created_by, created_at, updated_at')
-      .eq('task_id', task.id)
-      .eq('assignee_user_id', profile.id)
-      .order('sort_order');
-    setMyChecklistItems((data as TaskChecklist[]) || []);
-  }, [task.id, profile.id]);
-
-  const handleToggleChecklist = useCallback(async (itemId: string, currentChecked: boolean) => {
-    const supabase = createClient();
-    await supabase.from('task_checklists')
-      .update({ is_checked: !currentChecked })
-      .eq('id', itemId);
-    setMyChecklistItems(prev => prev.map(i => i.id === itemId ? { ...i, is_checked: !currentChecked } : i));
-    onRefresh();
-  }, [onRefresh]);
-
+  // Build checklist entries for edit form
   const startEditing = useCallback(async (userId: string) => {
+    const supabase = createClient();
+
+    // Fetch checklist items assigned to this user
+    const { data: myItems } = await supabase
+      .from('task_checklists')
+      .select('id, title, sort_order, assignee_user_id, is_checked')
+      .eq('task_id', task.id)
+      .eq('assignee_user_id', userId)
+      .order('sort_order');
+
+    const items = (myItems || []) as TaskChecklist[];
+
+    // Get existing submission to pre-fill
     const sub = submissions.find(s => s.user_id === userId);
-    if (sub) {
-      setSubmissionNote(sub.note || '');
-      setSubmissionLinks(
-        (sub.links || []).length > 0
-          ? (sub.links || []).map(l => ({ labelId: l.label_id || '', url: l.url, note: l.note }))
-          : [{ labelId: '', url: '', note: '' }]
-      );
-    } else {
-      setSubmissionNote('');
-      setSubmissionLinks([{ labelId: '', url: '', note: '' }]);
-    }
-    await fetchMyChecklist();
+    setSubmissionNote(sub?.note || '');
+
+    // Build entries: one per checklist item, pre-filled from existing links
+    const entries: ChecklistEntry[] = items.map(item => {
+      const existingLink = sub?.links?.find(l => l.checklist_item_id === item.id);
+      return {
+        checklistItemId: item.id,
+        title: item.title,
+        url: existingLink?.url || '',
+        labelId: existingLink?.label_id || '',
+        note: existingLink?.note || '',
+      };
+    });
+
+    setChecklistEntries(entries);
     setEditingUserId(userId);
-  }, [submissions, fetchMyChecklist]);
+  }, [task.id, submissions]);
 
   const cancelEditing = useCallback(() => {
     setEditingUserId(null);
   }, []);
 
-  const addLinkRow = useCallback(() => {
-    setSubmissionLinks(prev => [...prev, { labelId: '', url: '', note: '' }]);
-  }, []);
-
-  const removeLinkRow = useCallback((idx: number) => {
-    setSubmissionLinks(prev => prev.filter((_, i) => i !== idx));
-  }, []);
-
-  const updateLinkRow = useCallback((idx: number, field: 'labelId' | 'url' | 'note', value: string) => {
-    setSubmissionLinks(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l));
+  const updateEntry = useCallback((idx: number, field: 'url' | 'labelId' | 'note', value: string) => {
+    setChecklistEntries(prev => prev.map((e, i) => i === idx ? { ...e, [field]: value } : e));
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    const validLinks = submissionLinks.filter(l => l.url.trim());
-    if (!submissionNote.trim() && validLinks.length === 0) {
-      show('Vui lòng nhập ghi chú hoặc ít nhất 1 link.', 'error');
+    // Validate: each checklist item must have a URL
+    const incomplete = checklistEntries.filter(e => !e.url.trim());
+    if (checklistEntries.length > 0 && incomplete.length > 0) {
+      show(`Còn ${incomplete.length} mục chưa có link kết quả: ${incomplete.map(e => e.title).join(', ')}`, 'error');
+      return;
+    }
+
+    if (checklistEntries.length === 0 && !submissionNote.trim()) {
+      show('Vui lòng nhập ghi chú.', 'error');
       return;
     }
 
@@ -177,23 +183,17 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     const supabase = createClient();
     const existingSubmission = submissions.find(s => s.user_id === profile.id);
 
+    let submissionId: string;
+
     if (existingSubmission) {
       await supabase.from('task_member_submissions')
         .update({ note: submissionNote.trim(), updated_at: new Date().toISOString() })
         .eq('id', existingSubmission.id);
+      submissionId = existingSubmission.id;
 
+      // Delete old links
       await supabase.from('task_member_submission_links')
-        .delete().eq('submission_id', existingSubmission.id);
-
-      if (validLinks.length > 0) {
-        await supabase.from('task_member_submission_links')
-          .insert(validLinks.map(l => ({
-            submission_id: existingSubmission.id,
-            label_id: l.labelId || null,
-            url: l.url.trim(),
-            note: l.note.trim(),
-          })));
-      }
+        .delete().eq('submission_id', submissionId);
     } else {
       const { data: newSub, error } = await supabase
         .from('task_member_submissions')
@@ -205,21 +205,49 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         setSaving(false);
         return;
       }
+      submissionId = newSub.id;
+    }
 
-      if (validLinks.length > 0) {
-        await supabase.from('task_member_submission_links')
-          .insert(validLinks.map(l => ({
-            submission_id: newSub.id,
-            label_id: l.labelId || null,
-            url: l.url.trim(),
-            note: l.note.trim(),
-          })));
-      }
+    // Insert links tied to checklist items
+    const linksToInsert = checklistEntries
+      .filter(e => e.url.trim())
+      .map(e => ({
+        submission_id: submissionId,
+        checklist_item_id: e.checklistItemId,
+        label_id: e.labelId || null,
+        url: e.url.trim(),
+        note: e.note.trim(),
+      }));
+
+    if (linksToInsert.length > 0) {
+      await supabase.from('task_member_submission_links').insert(linksToInsert);
+    }
+
+    // Auto-tick checklist items that have results
+    const completedItemIds = checklistEntries
+      .filter(e => e.url.trim())
+      .map(e => e.checklistItemId);
+
+    if (completedItemIds.length > 0) {
+      await supabase.from('task_checklists')
+        .update({ is_checked: true })
+        .in('id', completedItemIds);
+    }
+
+    // Un-tick items without results (in case of update removing a link)
+    const uncompletedItemIds = checklistEntries
+      .filter(e => !e.url.trim())
+      .map(e => e.checklistItemId);
+
+    if (uncompletedItemIds.length > 0) {
+      await supabase.from('task_checklists')
+        .update({ is_checked: false })
+        .in('id', uncompletedItemIds);
     }
 
     await supabase.from('activity_logs').insert({
       user_id: profile.id, action: 'submit_result',
-      detail: 'Nộp/cập nhật kết quả', task_id: task.id,
+      detail: `Nộp kết quả (${completedItemIds.length} mục)`, task_id: task.id,
     });
 
     show('Đã nộp kết quả.', 'success');
@@ -227,20 +255,28 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     setSaving(false);
     fetchSubmissions();
     onRefresh();
-  }, [submissionNote, submissionLinks, submissions, profile.id, task.id, show, fetchSubmissions, onRefresh]);
+  }, [submissionNote, checklistEntries, submissions, profile.id, task.id, show, fetchSubmissions, onRefresh]);
 
   const handleDelete = useCallback(async (submissionId: string) => {
-    if (!window.confirm('Xóa báo cáo kết quả của bạn?')) return;
+    if (!window.confirm('Xóa báo cáo kết quả? Checklist liên quan sẽ được đánh dấu chưa hoàn thành.')) return;
     const supabase = createClient();
 
-    await supabase.from('task_member_submission_links')
-      .delete().eq('submission_id', submissionId);
-    const { error } = await supabase.from('task_member_submissions')
-      .delete().eq('id', submissionId);
+    // Get links to find checklist items to un-tick
+    const { data: links } = await supabase.from('task_member_submission_links')
+      .select('checklist_item_id').eq('submission_id', submissionId);
+    const itemIds = (links || []).map(l => l.checklist_item_id).filter(Boolean) as string[];
+
+    await supabase.from('task_member_submission_links').delete().eq('submission_id', submissionId);
+    const { error } = await supabase.from('task_member_submissions').delete().eq('id', submissionId);
 
     if (error) {
       show('Lỗi xóa: ' + error.message, 'error');
     } else {
+      // Un-tick related checklist items
+      if (itemIds.length > 0) {
+        await supabase.from('task_checklists').update({ is_checked: false }).in('id', itemIds);
+      }
+
       await supabase.from('activity_logs').insert({
         user_id: profile.id, action: 'delete_result',
         detail: 'Xóa báo cáo kết quả', task_id: task.id,
@@ -259,115 +295,98 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
 
   if (loading) return null;
 
-  const myCheckedCount = myChecklistItems.filter(i => i.is_checked).length;
-  const myTotalChecklist = myChecklistItems.length;
-  const hasUncheckedItems = myTotalChecklist > 0 && myCheckedCount < myTotalChecklist;
+  const filledCount = checklistEntries.filter(e => e.url.trim()).length;
 
+  // Edit form grouped by checklist items
   const renderEditForm = () => (
     <div className="pt-2 space-y-2.5">
-      {/* Checklist assigned to me */}
-      {myTotalChecklist > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5">
-          <div className="flex items-center justify-between mb-1.5">
+      {/* Checklist items - each with its own link input */}
+      {checklistEntries.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wide">
-              Checklist của bạn ({myCheckedCount}/{myTotalChecklist})
+              Công việc được giao ({filledCount}/{checklistEntries.length})
             </span>
-            {hasUncheckedItems && (
-              <span className="text-[10px] text-amber-600 font-medium">Chưa hoàn thành hết</span>
-            )}
           </div>
-          <div className="h-1 rounded-full bg-blue-200 mb-2">
+          <div className="h-1 rounded-full bg-blue-200">
             <div
               className="h-full rounded-full transition-all duration-300"
               style={{
-                width: `${Math.round((myCheckedCount / myTotalChecklist) * 100)}%`,
-                backgroundColor: myCheckedCount === myTotalChecklist ? '#2E7D32' : '#0288D1',
+                width: checklistEntries.length > 0 ? `${Math.round((filledCount / checklistEntries.length) * 100)}%` : '0%',
+                backgroundColor: filledCount === checklistEntries.length ? '#2E7D32' : '#0288D1',
               }}
             />
           </div>
-          <div className="space-y-0.5">
-            {myChecklistItems.map(item => (
-              <label
-                key={item.id}
-                className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-blue-100/60 cursor-pointer transition-colors"
-              >
+          {checklistEntries.map((entry, idx) => (
+            <div key={entry.checklistItemId} className={`rounded-lg border p-2.5 ${entry.url.trim() ? 'border-green-200 bg-green-50/50' : 'border-gray-200 bg-white'}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                  entry.url.trim() ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
+                }`}>
+                  {entry.url.trim() ? '\u2713' : idx + 1}
+                </div>
+                <span className="text-xs font-semibold text-gray-800">{entry.title}</span>
+              </div>
+              <div className="ml-6 space-y-1.5">
+                <div className="flex gap-1.5 items-center">
+                  <select
+                    value={entry.labelId}
+                    onChange={e => updateEntry(idx, 'labelId', e.target.value)}
+                    className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-[100px] shrink-0"
+                  >
+                    <option value="">Nhãn...</option>
+                    {linkLabels.map(ll => (
+                      <option key={ll.id} value={ll.id}>{ll.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="url"
+                    value={entry.url}
+                    onChange={e => updateEntry(idx, 'url', e.target.value)}
+                    placeholder="Link kết quả *"
+                    className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
                 <input
-                  type="checkbox"
-                  checked={item.is_checked}
-                  onChange={() => handleToggleChecklist(item.id, item.is_checked)}
-                  className="accent-blue-600 shrink-0"
+                  type="text"
+                  value={entry.note}
+                  onChange={e => updateEntry(idx, 'note', e.target.value)}
+                  placeholder="Ghi chú cho mục này..."
+                  className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-                <span className={`text-xs ${item.is_checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                  {item.title}
-                </span>
-              </label>
-            ))}
-          </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Note */}
+      {/* General note */}
       <textarea
         value={submissionNote}
         onChange={e => setSubmissionNote(e.target.value)}
         rows={2}
-        placeholder="Ghi chú về kết quả..."
+        placeholder="Ghi chú chung (tùy chọn)..."
         className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-        autoFocus={myTotalChecklist === 0}
       />
 
-      {/* Links */}
-      <div className="space-y-1.5">
-        {submissionLinks.map((link, idx) => (
-          <div key={idx} className="flex gap-1.5 items-center">
-            <select
-              value={link.labelId}
-              onChange={e => updateLinkRow(idx, 'labelId', e.target.value)}
-              className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500 w-[100px] shrink-0"
-            >
-              <option value="">Nhãn...</option>
-              {linkLabels.map(ll => (
-                <option key={ll.id} value={ll.id}>{ll.name}</option>
-              ))}
-            </select>
-            <input
-              type="url"
-              value={link.url}
-              onChange={e => updateLinkRow(idx, 'url', e.target.value)}
-              placeholder="https://..."
-              className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
-            />
-            <input
-              type="text"
-              value={link.note}
-              onChange={e => updateLinkRow(idx, 'note', e.target.value)}
-              placeholder="Mô tả"
-              className="w-[80px] border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
-            />
-            {submissionLinks.length > 1 && (
-              <button onClick={() => removeLinkRow(idx)} className="text-red-400 hover:text-red-600 text-xs shrink-0">&times;</button>
-            )}
-          </div>
-        ))}
-        <button onClick={addLinkRow} className="text-[11px] text-purple-600 hover:text-purple-700 font-medium">
-          + Thêm link
-        </button>
-      </div>
-
-      {/* Warning if unchecked items */}
-      {hasUncheckedItems && (
+      {/* Warning */}
+      {checklistEntries.length > 0 && filledCount < checklistEntries.length && (
         <div className="flex items-center gap-1.5 text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
           <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
           </svg>
-          <span>Bạn còn {myTotalChecklist - myCheckedCount} mục checklist chưa hoàn thành</span>
+          <span>Còn {checklistEntries.length - filledCount} mục chưa có link. Bạn cần hoàn thành tất cả để nộp.</span>
         </div>
       )}
 
       {/* Actions */}
       <div className="flex gap-2 pt-1">
-        <button onClick={handleSubmit} disabled={saving} className="px-3 py-1 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 disabled:opacity-50">
-          {saving ? 'Đang lưu...' : 'Lưu'}
+        <button
+          onClick={handleSubmit}
+          disabled={saving || (checklistEntries.length > 0 && filledCount < checklistEntries.length)}
+          className="px-3 py-1 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 disabled:opacity-50"
+        >
+          {saving ? 'Đang lưu...' : 'Nộp kết quả'}
         </button>
         <button onClick={cancelEditing} className="px-3 py-1 bg-gray-200 text-gray-600 text-xs rounded-lg hover:bg-gray-300">
           Hủy
@@ -376,11 +395,14 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     </div>
   );
 
+  // Display card: group links by checklist item
   const renderSubmissionCard = (sub: TaskMemberSubmission) => {
     const isMyCard = sub.user_id === profile.id;
     const isEditingThis = editingUserId === sub.user_id;
     const canModify = isMyCard && isWorkingStatus;
-    const linkCount = sub.links?.length || 0;
+    const links = sub.links || [];
+    const checklistLinks = links.filter(l => l.checklist_item_id);
+    const otherLinks = links.filter(l => !l.checklist_item_id);
 
     return (
       <div
@@ -391,16 +413,14 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
             : 'border-gray-200 hover:border-gray-300 p-2.5'
         }`}
       >
-        {/* Header: name + date + actions */}
+        {/* Header */}
         <div className="flex items-center gap-2">
-          {/* Avatar */}
           <div
             className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
             style={{ backgroundColor: isMyCard ? '#7B1FA2' : '#6B7280' }}
           >
             {(sub.user?.full_name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
           </div>
-          {/* Name + date */}
           <div className="flex-1 min-w-0">
             <span className="text-xs font-semibold text-gray-800">
               {sub.user?.full_name || 'Unknown'}
@@ -410,23 +430,14 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
               {new Date(sub.updated_at || sub.submitted_at).toLocaleDateString('vi-VN')}
             </span>
           </div>
-          {/* Action icons */}
           {canModify && !isEditingThis && (
             <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={() => startEditing(sub.user_id)}
-                className="p-1 text-gray-400 hover:text-purple-600 rounded hover:bg-purple-50 transition-colors"
-                title="Sửa"
-              >
+              <button onClick={() => startEditing(sub.user_id)} className="p-1 text-gray-400 hover:text-purple-600 rounded hover:bg-purple-50 transition-colors" title="Sửa">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
               </button>
-              <button
-                onClick={() => handleDelete(sub.id)}
-                className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
-                title="Xóa"
-              >
+              <button onClick={() => handleDelete(sub.id)} className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors" title="Xóa">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
@@ -440,12 +451,29 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
           renderEditForm()
         ) : (
           <div className="mt-1.5 ml-8">
-            {sub.note && (
-              <p className="text-[13px] text-gray-600 whitespace-pre-wrap leading-relaxed">{sub.note}</p>
+            {/* Checklist-linked results */}
+            {checklistLinks.length > 0 && (
+              <div className="space-y-1.5">
+                {checklistLinks.map(link => (
+                  <div key={link.id} className="flex items-start gap-1.5">
+                    <svg className="w-3 h-3 text-green-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-medium text-gray-500 block">{link.checklist_item?.title || 'Checklist'}</span>
+                      <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline break-all">
+                        {link.url}
+                      </a>
+                      {link.note && <span className="text-[10px] text-gray-400 block">{link.note}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
-            {linkCount > 0 && (
-              <div className={`space-y-1 ${sub.note ? 'mt-1.5' : ''}`}>
-                {(sub.links || []).map(link => (
+            {/* Other links */}
+            {otherLinks.length > 0 && (
+              <div className={`space-y-1 ${checklistLinks.length > 0 ? 'mt-1.5' : ''}`}>
+                {otherLinks.map(link => (
                   <div key={link.id} className="flex items-center gap-1.5">
                     <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">
                       {link.link_label?.name || 'Link'}
@@ -453,12 +481,14 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
                     <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline truncate">
                       {link.url}
                     </a>
-                    {link.note && <span className="text-[10px] text-gray-400 shrink-0">({link.note})</span>}
                   </div>
                 ))}
               </div>
             )}
-            {!sub.note && linkCount === 0 && (
+            {sub.note && (
+              <p className={`text-[13px] text-gray-600 whitespace-pre-wrap ${links.length > 0 ? 'mt-1.5' : ''}`}>{sub.note}</p>
+            )}
+            {!sub.note && links.length === 0 && (
               <p className="text-xs text-gray-400 italic">Chưa có nội dung.</p>
             )}
           </div>
@@ -469,14 +499,12 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
 
   return (
     <div>
-      {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide">
           Kết quả ({submittedCount}/{totalAssignees})
         </h4>
       </div>
 
-      {/* Progress */}
       {totalAssignees > 0 && (
         <div className="h-1 rounded-full bg-gray-200 mb-3">
           <div
@@ -489,15 +517,11 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         </div>
       )}
 
-      {/* Cards */}
       {submissions.length === 0 ? (
         <div className="text-center py-3">
           <p className="text-sm text-gray-400 mb-2">Chưa có editor nào nộp kết quả.</p>
           {canSubmit && (
-            <button
-              onClick={() => startEditing(profile.id)}
-              className="text-sm text-purple-600 hover:text-purple-700 font-medium"
-            >
+            <button onClick={() => startEditing(profile.id)} className="text-sm text-purple-600 hover:text-purple-700 font-medium">
               + Nộp kết quả
             </button>
           )}
@@ -517,7 +541,6 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         </div>
       )}
 
-      {/* New submission form (when not yet in list) */}
       {editingUserId === profile.id && !mySubmission && submissions.length > 0 && (
         <div className="mt-2 rounded-lg border border-purple-300 bg-purple-50 ring-1 ring-purple-200 p-3">
           <div className="flex items-center gap-2">
@@ -532,7 +555,6 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         </div>
       )}
 
-      {/* All submitted notice */}
       {allSubmitted && !isAdmin && isCreator && isWorkingStatus && (
         <div className="mt-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-center">
           <p className="text-xs text-green-700 font-medium">

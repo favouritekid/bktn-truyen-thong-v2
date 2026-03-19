@@ -94,11 +94,13 @@ export interface TaskMemberSubmission {
 export interface TaskMemberSubmissionLink {
   id: string;
   submission_id: string;
+  checklist_item_id: string | null;
   label_id: string | null;
   url: string;
   note: string;
   created_at: string;
   link_label?: LinkLabel;
+  checklist_item?: TaskChecklist;
 }
 
 export interface ActivityLog {

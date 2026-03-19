@@ -112,15 +112,15 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
   }, [newTitle, newAssigneeId, task.id, totalCount, profile.id, show, logActivity, onRefresh]);
 
   // Can this user toggle this specific item?
+  // Editors cannot manually tick — checklist is auto-completed via submission
+  // Only admin can manually toggle, or items without assignee in draft/approved status
   const canToggleItem = useCallback((item: TaskChecklistItem) => {
     if (isAdmin) return true;
-    // If item has an assignee, only that assignee can tick
-    if (item.assignee_user_id) {
-      return item.assignee_user_id === profile.id;
-    }
-    // No assignee: any task assignee can tick
+    // If item has an assignee, it's tied to submissions — no manual tick
+    if (item.assignee_user_id) return false;
+    // No assignee: any task assignee can tick in editable statuses
     return isAssignee && editableStatuses.includes(task.status);
-  }, [isAdmin, profile.id, isAssignee, task.status]);
+  }, [isAdmin, isAssignee, task.status]);
 
   const handleToggle = useCallback(async (itemId: string, currentChecked: boolean) => {
     const supabase = createClient();
@@ -216,6 +216,11 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
               />
               <span className={`text-sm flex-1 ${item.is_checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
                 {item.title}
+                {item.assignee_user_id && !isAdmin && (
+                  <span className="text-[9px] text-gray-400 ml-1" title="Tự hoàn thành khi nộp kết quả">
+                    (qua báo cáo)
+                  </span>
+                )}
               </span>
               {/* Assignee badge or select */}
               {canChangeAssignee ? (
