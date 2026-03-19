@@ -126,6 +126,9 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
 
   // Build checklist entries for edit form
   const startEditing = useCallback(async (userId: string) => {
+    // Set editing immediately so UI responds
+    setEditingUserId(userId);
+
     const supabase = createClient();
 
     // Fetch checklist items assigned to this user
@@ -155,7 +158,6 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     });
 
     setChecklistEntries(entries);
-    setEditingUserId(userId);
   }, [task.id, submissions]);
 
   const cancelEditing = useCallback(() => {
@@ -383,7 +385,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       <div className="flex gap-2 pt-1">
         <button
           onClick={handleSubmit}
-          disabled={saving || (checklistEntries.length > 0 && filledCount < checklistEntries.length)}
+          disabled={saving}
           className="px-3 py-1 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 disabled:opacity-50"
         >
           {saving ? 'Đang lưu...' : 'Nộp kết quả'}
