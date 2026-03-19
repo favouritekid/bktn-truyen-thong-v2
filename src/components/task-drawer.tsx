@@ -349,112 +349,115 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
         {/* ===== BODY - scrollable ===== */}
         <div className="flex-1 overflow-y-auto">
-          <div className="px-5 py-4 space-y-1">
+          <div className="px-4 py-3 space-y-3">
 
             {/* ========== GROUP 1: THÔNG TIN TASK ========== */}
-            <div className="flex items-center gap-2 pt-1 pb-2">
-              <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center">
-                <span className="text-white text-[9px] font-bold">i</span>
+            <div className="rounded-xl bg-blue-50/60 border border-blue-100 overflow-hidden">
+              {/* Group header */}
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-100/60 border-b border-blue-100">
+                <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Thông tin task</h3>
               </div>
-              <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Thông tin task</h3>
-            </div>
 
-            <div className="space-y-3 mb-2">
-              {/* Description */}
-              <section className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide">Mô tả</h4>
-                  {!editingDescription && (isAdmin || (isEditor && ['Bản nháp', 'Đang làm'].includes(task.status))) && (
-                    <button onClick={() => setEditingDescription(true)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
-                      Sửa
-                    </button>
-                  )}
-                </div>
-                {editingDescription ? (
-                  <div className="space-y-2">
-                    <textarea
-                      value={descriptionDraft}
-                      onChange={e => setDescriptionDraft(e.target.value)}
-                      rows={6}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
-                      <button onClick={handleSaveDescription} disabled={updating} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">Lưu</button>
-                      <button onClick={() => { setEditingDescription(false); setDescriptionDraft(task.description || ''); }} className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Hủy</button>
-                    </div>
+              <div className="p-3 space-y-2.5">
+                {/* Description */}
+                <section className="bg-white rounded-lg border border-blue-100 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h4 className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Mô tả</h4>
+                    {!editingDescription && (isAdmin || (isEditor && ['Bản nháp', 'Đang làm'].includes(task.status))) && (
+                      <button onClick={() => setEditingDescription(true)} className="text-[11px] text-blue-600 hover:text-blue-700 font-medium">
+                        Sửa
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap min-h-[40px]">
-                    {task.description || <span className="text-gray-400 italic">Chưa có mô tả.</span>}
-                  </p>
-                )}
-              </section>
-
-              {/* Checklist */}
-              <section className="bg-white rounded-lg border border-gray-200 p-4">
-                <TaskChecklist task={task} onRefresh={onRefresh} />
-              </section>
-
-              {/* Links */}
-              <section className="bg-white rounded-lg border border-gray-200 p-4">
-                <TaskLinks task={task} onRefresh={onRefresh} />
-              </section>
-
-              {/* Admin Note */}
-              {(task.admin_note || isAdmin) && (
-                <section className="bg-amber-50 rounded-lg border border-amber-200 p-4">
-                  <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2">Ghi chú Admin</h4>
-                  {isAdmin ? (
-                    <AdminNoteEditor task={task} onRefresh={onRefresh} />
+                  {editingDescription ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={descriptionDraft}
+                        onChange={e => setDescriptionDraft(e.target.value)}
+                        rows={5}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={handleSaveDescription} disabled={updating} className="px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50">Lưu</button>
+                        <button onClick={() => { setEditingDescription(false); setDescriptionDraft(task.description || ''); }} className="px-3 py-1 bg-gray-200 text-gray-600 text-xs rounded-lg hover:bg-gray-300">Hủy</button>
+                      </div>
+                    </div>
                   ) : (
-                    <p className="text-sm text-amber-800 whitespace-pre-wrap">
-                      {task.admin_note || 'Không có ghi chú.'}
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap min-h-[32px]">
+                      {task.description || <span className="text-gray-400 italic">Chưa có mô tả.</span>}
                     </p>
                   )}
                 </section>
-              )}
+
+                {/* Checklist */}
+                <section className="bg-white rounded-lg border border-blue-100 p-3">
+                  <TaskChecklist task={task} onRefresh={onRefresh} />
+                </section>
+
+                {/* Links */}
+                <section className="bg-white rounded-lg border border-blue-100 p-3">
+                  <TaskLinks task={task} onRefresh={onRefresh} />
+                </section>
+
+                {/* Admin Note */}
+                {(task.admin_note || isAdmin) && (
+                  <section className="bg-amber-50 rounded-lg border border-amber-200 p-3">
+                    <h4 className="text-[11px] font-bold text-amber-700 uppercase tracking-wide mb-1.5">Ghi chú Admin</h4>
+                    {isAdmin ? (
+                      <AdminNoteEditor task={task} onRefresh={onRefresh} />
+                    ) : (
+                      <p className="text-sm text-amber-800 whitespace-pre-wrap">
+                        {task.admin_note || 'Không có ghi chú.'}
+                      </p>
+                    )}
+                  </section>
+                )}
+              </div>
             </div>
 
-            {/* ========== GROUP 2: BÁO CÁO KẾT QUẢ (per-editor submissions) ========== */}
+            {/* ========== GROUP 2: BÁO CÁO KẾT QUẢ ========== */}
             {['Đang làm', 'Chờ duyệt KQ', 'Đã đăng'].includes(task.status) && (
-              <>
-                <div className="flex items-center gap-2 pt-3 pb-2">
-                  <div className="w-4 h-4 rounded bg-purple-500 flex items-center justify-center">
-                    <span className="text-white text-[9px] font-bold">&#10003;</span>
-                  </div>
-                  <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Báo cáo kết quả</h3>
+              <div className="rounded-xl bg-purple-50/60 border border-purple-100 overflow-hidden">
+                {/* Group header with count */}
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-purple-100/60 border-b border-purple-100">
+                  <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h3 className="text-[11px] font-bold text-purple-700 uppercase tracking-wider">Báo cáo kết quả</h3>
                 </div>
 
-                <div className="space-y-3 mb-2">
-                  <section className="bg-white rounded-lg border border-gray-200 p-4">
-                    <TaskSubmissions task={task} onRefresh={onRefresh} />
-                  </section>
+                <div className="p-3">
+                  <TaskSubmissions task={task} onRefresh={onRefresh} />
                 </div>
-              </>
+              </div>
             )}
 
-            {/* ========== GROUP 3: BÌNH LUẬN ========== */}
-            <div className="flex items-center gap-2 pt-3 pb-2">
-              <div className="w-4 h-4 rounded bg-green-500 flex items-center justify-center">
-                <span className="text-white text-[9px] font-bold">&#9998;</span>
+            {/* ========== GROUP 3: TRAO ĐỔI ========== */}
+            <div className="rounded-xl bg-green-50/60 border border-green-100 overflow-hidden">
+              {/* Group header */}
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-green-100/60 border-b border-green-100">
+                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <h3 className="text-[11px] font-bold text-green-700 uppercase tracking-wider">Trao đổi</h3>
               </div>
-              <h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Trao đổi</h3>
-            </div>
 
-            <div className="space-y-3">
-              <section className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="p-3">
                 <TaskComments task={task} onRefresh={onRefresh} />
-              </section>
+              </div>
             </div>
 
             {/* Footer info */}
-            <div className="flex items-center justify-between text-[11px] text-gray-400 px-1 pt-3 pb-2">
-              <div className="space-x-3">
+            <div className="flex items-center justify-between text-[10px] text-gray-400 px-1 pt-1 pb-2">
+              <div className="space-x-2">
                 <span>Tạo: {formatDateVN(task.created_at)}</span>
                 <span>Cập nhật: {formatDateVN(task.updated_at)}</span>
               </div>
-              <span className="font-mono text-[10px] text-gray-300">{task.id}</span>
+              <span className="font-mono text-gray-300">{task.id}</span>
             </div>
 
           </div>
