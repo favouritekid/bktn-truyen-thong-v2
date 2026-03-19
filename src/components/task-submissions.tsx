@@ -519,31 +519,37 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         </div>
       )}
 
-      {submissions.length === 0 ? (
-        <div className="text-center py-3">
-          <p className="text-sm text-gray-400 mb-2">Chưa có editor nào nộp kết quả.</p>
-          {canSubmit && (
-            <button onClick={() => startEditing(profile.id)} className="text-sm text-purple-600 hover:text-purple-700 font-medium">
-              + Nộp kết quả
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {submissions.map(sub => renderSubmissionCard(sub))}
+      {/* Submission cards */}
+      <div className="space-y-2">
+        {submissions.map(sub => renderSubmissionCard(sub))}
 
-          {canSubmit && !mySubmission && !editingUserId && (
+        {/* Button to start new submission */}
+        {canSubmit && !mySubmission && !editingUserId && (
+          submissions.length === 0 ? (
+            <div className="text-center py-3">
+              <p className="text-sm text-gray-400 mb-2">Chưa có editor nào nộp kết quả.</p>
+              <button onClick={() => startEditing(profile.id)} className="text-sm text-purple-600 hover:text-purple-700 font-medium">
+                + Nộp kết quả
+              </button>
+            </div>
+          ) : (
             <button
               onClick={() => startEditing(profile.id)}
               className="w-full rounded-lg border-2 border-dashed border-purple-200 py-2 text-xs text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition-colors font-medium"
             >
               + Nộp kết quả của bạn
             </button>
-          )}
-        </div>
-      )}
+          )
+        )}
 
-      {editingUserId === profile.id && !mySubmission && submissions.length > 0 && (
+        {/* No submissions and can't submit */}
+        {submissions.length === 0 && !canSubmit && !editingUserId && (
+          <p className="text-sm text-gray-400 text-center py-3">Chưa có editor nào nộp kết quả.</p>
+        )}
+      </div>
+
+      {/* New submission form (not yet in list) */}
+      {editingUserId === profile.id && !mySubmission && (
         <div className="mt-2 rounded-lg border border-purple-300 bg-purple-50 ring-1 ring-purple-200 p-3">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ backgroundColor: '#7B1FA2' }}>
