@@ -63,9 +63,16 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
         </div>
 
         {/* Title */}
-        <h4 className="text-[13px] font-medium text-gray-800 leading-snug line-clamp-2 mb-2">
+        <h4 className="text-[13px] font-medium text-gray-800 leading-snug line-clamp-2 mb-1.5">
           {task.title}
         </h4>
+
+        {/* Creator */}
+        {task.creator && (
+          <p className="text-[10px] text-gray-400 mb-2">
+            Tạo bởi: {task.creator.full_name}
+          </p>
+        )}
 
         {/* Badges + Avatars row */}
         <div className="flex items-center justify-between gap-2">

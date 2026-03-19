@@ -357,42 +357,55 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
               </span>
             </div>
 
-            {/* Meta row: assignees + deadline */}
-            <div className="flex items-center justify-between text-sm">
-              {/* Assignees */}
-              <div className="flex items-center gap-1.5">
-                <div className="flex -space-x-2">
-                  {(task.assignees || []).slice(0, 4).map(a => (
-                    <div
-                      key={a.id}
-                      title={a.full_name}
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white"
-                      style={{ backgroundColor: getAvatarColor(a.full_name) }}
-                    >
-                      {getInitials(a.full_name)}
-                    </div>
-                  ))}
-                  {(task.assignees?.length || 0) > 4 && (
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-600 bg-gray-200 border-2 border-white">
-                      +{task.assignees!.length - 4}
-                    </div>
-                  )}
-                </div>
-                <span className="text-xs text-gray-500 ml-1">
-                  {task.assignees?.map(a => a.full_name).join(', ') || 'Chưa gán'}
-                </span>
-              </div>
-
-              {/* Deadline */}
-              {task.deadline && (
-                <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded ${
-                  overdue ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                }`}>
-                  <span>&#128197;</span>
-                  <span>{formatDateTimeVN(task.deadline)}</span>
-                  {overdue && <span>(Trễ!)</span>}
+            {/* Meta rows */}
+            <div className="space-y-2 text-sm">
+              {/* Creator */}
+              {task.creator && (
+                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                  <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span>Tạo bởi: <span className="font-medium text-gray-700">{task.creator.full_name}</span></span>
                 </div>
               )}
+
+              {/* Assignees + Deadline */}
+              <div className="flex items-center justify-between">
+                {/* Assignees */}
+                <div className="flex items-center gap-1.5">
+                  <div className="flex -space-x-2">
+                    {(task.assignees || []).slice(0, 4).map(a => (
+                      <div
+                        key={a.id}
+                        title={a.full_name}
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white"
+                        style={{ backgroundColor: getAvatarColor(a.full_name) }}
+                      >
+                        {getInitials(a.full_name)}
+                      </div>
+                    ))}
+                    {(task.assignees?.length || 0) > 4 && (
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-600 bg-gray-200 border-2 border-white">
+                        +{task.assignees!.length - 4}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-500 ml-1">
+                    {task.assignees?.map(a => a.full_name).join(', ') || 'Chưa gán'}
+                  </span>
+                </div>
+
+                {/* Deadline */}
+                {task.deadline && (
+                  <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded ${
+                    overdue ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    <span>&#128197;</span>
+                    <span>{formatDateTimeVN(task.deadline)}</span>
+                    {overdue && <span>(Trễ!)</span>}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
