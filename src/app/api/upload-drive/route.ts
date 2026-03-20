@@ -92,13 +92,28 @@ export async function POST(req: NextRequest) {
 
     const drive = getDriveClient();
 
-    // Build folder structure: Root > Campaign > Task > Editor > [Checklist item]
+    // Build folder structure: Root > Campaign > Task > Editor > [Checklist item] > version
     const campaignFolderId = await getOrCreateFolder(drive, campaignName, rootFolderId);
     const taskFolderId = await getOrCreateFolder(drive, taskTitle, campaignFolderId);
     const editorFolderId = await getOrCreateFolder(drive, uploaderName, taskFolderId);
-    const targetFolderId = checklistTitle
+    const checklistFolderId = checklistTitle
       ? await getOrCreateFolder(drive, checklistTitle, editorFolderId)
       : editorFolderId;
+
+    // Auto-version: count existing version folders, create next one
+    const { data: existingVersions } = await drive.files.list({
+      q: `'${checklistFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false and name contains 'v'`,
+      fields: 'files(name)',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      corpora: 'allDrives',
+    });
+    const versionNumbers = (existingVersions?.files || [])
+      .map(f => parseInt(f.name?.replace('v', '') || '0', 10))
+      .filter(n => !isNaN(n));
+    const nextVersion = versionNumbers.length > 0 ? Math.max(...versionNumbers) + 1 : 1;
+    const versionFolder = `v${nextVersion}`;
+    const targetFolderId = await getOrCreateFolder(drive, versionFolder, checklistFolderId);
 
     // Upload all files in parallel
     const uploadedFiles = await Promise.all(
@@ -146,6 +161,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       folderUrl,
+      version: nextVersion,
       fileCount: uploadedFiles.length,
       files: uploadedFiles,
     });

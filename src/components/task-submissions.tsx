@@ -18,6 +18,7 @@ interface ChecklistEntry {
   url: string;
   labelId: string;
   note: string;
+  isUploaded: boolean;
 }
 
 interface RawSubmission {
@@ -150,12 +151,14 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     // Build entries: one per checklist item, pre-filled from existing links
     const entries: ChecklistEntry[] = items.map(item => {
       const existingLink = sub?.links?.find(l => l.checklist_item_id === item.id);
+      const url = existingLink?.url || '';
       return {
         checklistItemId: item.id,
         title: item.title,
-        url: existingLink?.url || '',
+        url,
         labelId: existingLink?.label_id || '',
         note: existingLink?.note || '',
+        isUploaded: url.includes('drive.google.com/'),
       };
     });
 
@@ -180,12 +183,17 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         return;
       }
 
+      // Determine version: count existing submission to figure out version
+      const existingSub = submissions.find(s => s.user_id === profile.id);
+      const version = existingSub ? (existingSub.links?.length ? 'update' : 'v1') : 'v1';
+
       const formData = new FormData();
       Array.from(files).forEach(f => formData.append('files', f));
       formData.append('campaignName', task.campaign?.name || 'Không có chiến dịch');
       formData.append('taskTitle', task.title);
       formData.append('uploaderName', profile.full_name);
       formData.append('checklistTitle', checklistEntries[idx]?.title || '');
+      formData.append('version', version);
 
       const res = await fetch('/api/upload-drive', {
         method: 'POST',
@@ -199,9 +207,11 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         return;
       }
 
-      // Auto-fill URL with folder link (contains all uploaded files)
-      updateEntry(idx, 'url', result.folderUrl);
-      show(`Đã upload ${result.fileCount} file lên Google Drive`, 'success');
+      // Auto-fill URL with folder link and mark as uploaded
+      setChecklistEntries(prev => prev.map((e, i) =>
+        i === idx ? { ...e, url: result.folderUrl, isUploaded: true } : e
+      ));
+      show(`Đã upload ${result.fileCount} file lên Google Drive (v${result.version})`, 'success');
     } catch {
       show('Lỗi upload file', 'error');
     } finally {
@@ -209,13 +219,20 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       const input = fileInputRefs.current.get(idx);
       if (input) input.value = '';
     }
-  }, [show, updateEntry, task, profile.full_name, checklistEntries]);
+  }, [show, task, profile.id, profile.full_name, checklistEntries, submissions]);
 
   const handleSubmit = useCallback(async () => {
     // Validate: each checklist item must have a URL
     const incomplete = checklistEntries.filter(e => !e.url.trim());
     if (checklistEntries.length > 0 && incomplete.length > 0) {
       show(`Còn ${incomplete.length} mục chưa có link kết quả: ${incomplete.map(e => e.title).join(', ')}`, 'error');
+      return;
+    }
+
+    // Validate: each checklist item must have a label
+    const noLabel = checklistEntries.filter(e => !e.labelId);
+    if (checklistEntries.length > 0 && noLabel.length > 0) {
+      show(`Còn ${noLabel.length} mục chưa chọn nhãn: ${noLabel.map(e => e.title).join(', ')}`, 'error');
       return;
     }
 
@@ -377,20 +394,44 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
                   <select
                     value={entry.labelId}
                     onChange={e => updateEntry(idx, 'labelId', e.target.value)}
-                    className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-[100px] shrink-0"
+                    className={`border rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-[100px] shrink-0 ${
+                      !entry.labelId ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
                   >
-                    <option value="">Nhãn...</option>
+                    <option value="">Nhãn *</option>
                     {linkLabels.map(ll => (
                       <option key={ll.id} value={ll.id}>{ll.name}</option>
                     ))}
                   </select>
-                  <input
-                    type="url"
-                    value={entry.url}
-                    onChange={e => updateEntry(idx, 'url', e.target.value)}
-                    placeholder="Link kết quả *"
-                    className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
+                  <div className="flex-1 min-w-0 relative">
+                    <input
+                      type="url"
+                      value={entry.url}
+                      onChange={e => { if (!entry.isUploaded) updateEntry(idx, 'url', e.target.value); }}
+                      readOnly={entry.isUploaded}
+                      placeholder="Link kết quả *"
+                      className={`w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                        entry.isUploaded
+                          ? 'border-green-300 bg-green-50 text-green-700 cursor-default pr-6'
+                          : 'border-gray-300'
+                      }`}
+                      title={entry.isUploaded ? 'Link từ Google Drive (upload lại để thay đổi)' : ''}
+                    />
+                    {entry.isUploaded && (
+                      <button
+                        type="button"
+                        onClick={() => setChecklistEntries(prev => prev.map((e, i) =>
+                          i === idx ? { ...e, url: '', isUploaded: false } : e
+                        ))}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 p-0.5"
+                        title="Xóa link, nhập thủ công"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="file"
                     multiple
