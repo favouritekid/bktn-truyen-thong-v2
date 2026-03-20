@@ -23,7 +23,6 @@ async function getOrCreateFolder(
   name: string,
   parentId: string,
 ): Promise<string> {
-  // Search for existing folder
   const query = `name='${name.replace(/'/g, "\\'")}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   const { data } = await drive.files.list({
     q: query,
@@ -37,7 +36,6 @@ async function getOrCreateFolder(
     return data.files[0].id!;
   }
 
-  // Create folder
   const folder = await drive.files.create({
     requestBody: {
       name,
@@ -76,58 +74,80 @@ export async function POST(req: NextRequest) {
 
   try {
     const formData = await req.formData();
-    const file = formData.get('file') as File | null;
+    const files = formData.getAll('files') as File[];
     const campaignName = (formData.get('campaignName') as string) || 'Không có chiến dịch';
     const taskTitle = (formData.get('taskTitle') as string) || 'Untitled Task';
     const uploaderName = (formData.get('uploaderName') as string) || 'Unknown';
+    const checklistTitle = (formData.get('checklistTitle') as string) || '';
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    if (files.length === 0) {
+      return NextResponse.json({ error: 'No files provided' }, { status: 400 });
     }
 
-    // 50MB limit
-    if (file.size > 50 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File quá lớn (tối đa 50MB)' }, { status: 400 });
+    // 50MB per file limit
+    const oversized = files.find(f => f.size > 50 * 1024 * 1024);
+    if (oversized) {
+      return NextResponse.json({ error: `File "${oversized.name}" quá lớn (tối đa 50MB)` }, { status: 400 });
     }
 
     const drive = getDriveClient();
 
-    // Build folder structure: Root > Campaign > Task > Editor
+    // Build folder structure: Root > Campaign > Task > Editor > [Checklist item]
     const campaignFolderId = await getOrCreateFolder(drive, campaignName, rootFolderId);
     const taskFolderId = await getOrCreateFolder(drive, taskTitle, campaignFolderId);
     const editorFolderId = await getOrCreateFolder(drive, uploaderName, taskFolderId);
+    const targetFolderId = checklistTitle
+      ? await getOrCreateFolder(drive, checklistTitle, editorFolderId)
+      : editorFolderId;
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const stream = Readable.from(buffer);
+    // Upload all files in parallel
+    const uploadedFiles = await Promise.all(
+      files.map(async (file) => {
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const stream = Readable.from(buffer);
 
-    const driveResponse = await drive.files.create({
-      requestBody: {
-        name: file.name,
-        parents: [editorFolderId],
-      },
-      media: {
-        mimeType: file.type || 'application/octet-stream',
-        body: stream,
-      },
-      fields: 'id, name, webViewLink',
-      supportsAllDrives: true,
-    });
+        const driveResponse = await drive.files.create({
+          requestBody: {
+            name: file.name,
+            parents: [targetFolderId],
+          },
+          media: {
+            mimeType: file.type || 'application/octet-stream',
+            body: stream,
+          },
+          fields: 'id, name, webViewLink',
+          supportsAllDrives: true,
+        });
 
-    // Make file accessible to anyone with the link
+        return {
+          fileId: driveResponse.data.id,
+          fileName: driveResponse.data.name,
+          url: driveResponse.data.webViewLink,
+        };
+      })
+    );
+
+    // Set folder permission so anyone with link can view
+    // (Shared Drive may already handle this, but set on folder to be safe)
     await drive.permissions.create({
-      fileId: driveResponse.data.id!,
+      fileId: targetFolderId,
       requestBody: {
         role: 'reader',
         type: 'anyone',
       },
       supportsAllDrives: true,
+    }).catch(() => {
+      // Shared Drive may restrict this - files inherit Drive permissions
     });
 
+    // Return folder link + individual file info
+    const folderUrl = `https://drive.google.com/drive/folders/${targetFolderId}`;
+
     return NextResponse.json({
-      fileId: driveResponse.data.id,
-      fileName: driveResponse.data.name,
-      url: driveResponse.data.webViewLink,
+      folderUrl,
+      fileCount: uploadedFiles.length,
+      files: uploadedFiles,
     });
   } catch (err: unknown) {
     console.error('Google Drive upload error:', err);

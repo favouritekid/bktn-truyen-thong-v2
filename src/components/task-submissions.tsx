@@ -170,7 +170,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     setChecklistEntries(prev => prev.map((e, i) => i === idx ? { ...e, [field]: value } : e));
   }, []);
 
-  const handleUploadToDrive = useCallback(async (idx: number, file: File) => {
+  const handleUploadToDrive = useCallback(async (idx: number, files: FileList) => {
     setUploadingIdx(idx);
     try {
       const supabase = createClient();
@@ -181,10 +181,11 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       }
 
       const formData = new FormData();
-      formData.append('file', file);
+      Array.from(files).forEach(f => formData.append('files', f));
       formData.append('campaignName', task.campaign?.name || 'Không có chiến dịch');
       formData.append('taskTitle', task.title);
       formData.append('uploaderName', profile.full_name);
+      formData.append('checklistTitle', checklistEntries[idx]?.title || '');
 
       const res = await fetch('/api/upload-drive', {
         method: 'POST',
@@ -198,18 +199,17 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         return;
       }
 
-      // Auto-fill the URL field with the Google Drive link
-      updateEntry(idx, 'url', result.url);
-      show(`Đã upload "${result.fileName}" lên Google Drive`, 'success');
+      // Auto-fill URL with folder link (contains all uploaded files)
+      updateEntry(idx, 'url', result.folderUrl);
+      show(`Đã upload ${result.fileCount} file lên Google Drive`, 'success');
     } catch {
       show('Lỗi upload file', 'error');
     } finally {
       setUploadingIdx(null);
-      // Reset the file input
       const input = fileInputRefs.current.get(idx);
       if (input) input.value = '';
     }
-  }, [show, updateEntry]);
+  }, [show, updateEntry, task, profile.full_name, checklistEntries]);
 
   const handleSubmit = useCallback(async () => {
     // Validate: each checklist item must have a URL
@@ -393,10 +393,11 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
                   />
                   <input
                     type="file"
+                    multiple
                     ref={el => { if (el) fileInputRefs.current.set(idx, el); }}
                     onChange={e => {
-                      const f = e.target.files?.[0];
-                      if (f) handleUploadToDrive(idx, f);
+                      const fl = e.target.files;
+                      if (fl && fl.length > 0) handleUploadToDrive(idx, fl);
                     }}
                     className="hidden"
                   />
