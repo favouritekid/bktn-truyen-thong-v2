@@ -182,6 +182,9 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
 
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('campaignName', task.campaign?.name || 'Không có chiến dịch');
+      formData.append('taskTitle', task.title);
+      formData.append('uploaderName', profile.full_name);
 
       const res = await fetch('/api/upload-drive', {
         method: 'POST',
