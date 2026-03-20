@@ -110,7 +110,7 @@ export default function KanbanPage() {
           <select
             value={channelFilter}
             onChange={e => setChannelFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            className="border border-gray-200 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-gray-700"
           >
             <option value="">Tất cả kênh</option>
             {dbChannels.map(c => (
@@ -123,7 +123,7 @@ export default function KanbanPage() {
             <select
               value={assigneeFilter}
               onChange={e => setAssigneeFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="border border-gray-200 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-gray-700"
             >
               <option value="">Tất cả NV</option>
               {allEditors.map(e => (
@@ -133,33 +133,33 @@ export default function KanbanPage() {
           )}
 
           {/* Toggle published */}
-          <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
+          <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={showPublished}
               onChange={e => setShowPublished(e.target.checked)}
-              className="accent-blue-600"
+              className="accent-indigo-500 w-3.5 h-3.5"
             />
-            Hiện "Đã đăng"
+            Đã đăng
           </label>
 
           {/* Toggle archived (admin only) */}
           {isAdminOrAbove(profile.role) && (
-            <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
+            <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={showArchived}
                 onChange={e => setShowArchived(e.target.checked)}
-                className="accent-amber-600"
+                className="accent-amber-500 w-3.5 h-3.5"
               />
-              Đã lưu trữ
+              Lưu trữ
             </label>
           )}
         </div>
 
         <button
           onClick={openCreateForm}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+          className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium rounded-md transition-colors"
         >
           + Tạo Task mới
         </button>
@@ -171,40 +171,27 @@ export default function KanbanPage() {
           <p className="text-lg">Đang tải...</p>
         </div>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 'calc(100vh - 220px)' }}>
+        <div className="flex gap-2 overflow-x-auto pb-4" style={{ minHeight: 'calc(100vh - 140px)' }}>
           {visibleStatuses.map(status => {
             const statusTasks = tasksByStatus[status] || [];
-            const color = STATUS_COLORS[status] || '#9E9E9E';
+            const color = STATUS_COLORS[status] || '#8B8F96';
 
             return (
               <div
                 key={status}
-                className="flex-shrink-0 w-[280px] bg-gray-50 rounded-xl border border-gray-200 flex flex-col"
+                className="flex-shrink-0 w-[290px] flex flex-col"
               >
                 {/* Column header */}
-                <div
-                  className="px-3 py-2.5 rounded-t-xl flex items-center justify-between"
-                  style={{ backgroundColor: color + '15' }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: color }}
-                    />
-                    <span className="text-sm font-bold" style={{ color }}>
-                      {status}
-                    </span>
+                <div className="px-2 py-2 flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                    <span className="text-xs font-semibold text-gray-700">{status}</span>
                   </div>
-                  <span
-                    className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
-                    style={{ backgroundColor: color }}
-                  >
-                    {statusTasks.length}
-                  </span>
+                  <span className="text-[11px] text-gray-400 font-medium">{statusTasks.length}</span>
                 </div>
 
                 {/* Cards */}
-                <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-300px)]">
+                <div className="flex-1 space-y-1.5 overflow-y-auto max-h-[calc(100vh-200px)]">
                   {statusTasks.length === 0 ? (
                     <p className="text-center text-xs text-gray-400 py-8">Trống</p>
                   ) : (

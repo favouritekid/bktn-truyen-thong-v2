@@ -4,19 +4,19 @@ export const PRIORITIES = ['Cao', 'Trung bình', 'Thấp'] as const;
 export const CONTENT_TYPES = ['Bài viết', 'Video', 'Story/Reels', 'Infographic', 'Livestream'] as const;
 
 export const STATUS_COLORS: Record<string, string> = {
-  'Bản nháp': '#9E9E9E',
-  'Chờ duyệt KH': '#E65100',
-  'Đã duyệt': '#0288D1',
-  'Đang làm': '#F57F17',
-  'Chờ duyệt KQ': '#7B1FA2',
-  'Đã đăng': '#2E7D32',
+  'Bản nháp': '#8B8F96',
+  'Chờ duyệt KH': '#C2723E',
+  'Đã duyệt': '#4E8FB5',
+  'Đang làm': '#C09640',
+  'Chờ duyệt KQ': '#8B6CA1',
+  'Đã đăng': '#4A8C5E',
 };
 
 export const CHANNEL_COLORS: Record<string, string> = {
-  'Facebook': '#1877F2',
-  'TikTok/YouTube': '#FE2C55',
-  'Website/Blog': '#7C3AED',
-  'Zalo OA': '#0068FF',
+  'Facebook': '#5B8EC9',
+  'TikTok/YouTube': '#C96B7A',
+  'Website/Blog': '#8B72B8',
+  'Zalo OA': '#5B84C9',
 };
 
 export const RESULT_TYPES = [
@@ -60,9 +60,9 @@ export const CAMPAIGN_STATUS_LABELS: Record<string, string> = {
 };
 
 export const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
-  draft: '#9E9E9E',
-  active: '#2E7D32',
-  paused: '#F57F17',
-  ended: '#0288D1',
-  archived: '#757575',
+  draft: '#8B8F96',
+  active: '#4A8C5E',
+  paused: '#C09640',
+  ended: '#4E8FB5',
+  archived: '#6B7280',
 };
