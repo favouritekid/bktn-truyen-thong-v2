@@ -18,6 +18,7 @@ export default function KanbanPage() {
   const [channelFilter, setChannelFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [showPublished, setShowPublished] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [formTask, setFormTask] = useState<Task | null | undefined>(undefined); // undefined = closed, null = create, Task = edit
   const [allEditors, setAllEditors] = useState<Profile[]>([]);
@@ -27,6 +28,7 @@ export default function KanbanPage() {
     role: profile.role,
     channelFilter: channelFilter || undefined,
     assigneeFilter: assigneeFilter || undefined,
+    showArchived,
   });
 
   // Load editors for filter
@@ -68,6 +70,10 @@ export default function KanbanPage() {
       const updated = tasks.find(t => t.id === selectedTaskRef.current!.id);
       if (updated) {
         setSelectedTask(updated);
+      } else {
+        // Task was deleted or archived — close drawer
+        selectedTaskRef.current = null;
+        setSelectedTask(null);
       }
     }
   }, [tasks]);
@@ -136,6 +142,19 @@ export default function KanbanPage() {
             />
             Hiện "Đã đăng"
           </label>
+
+          {/* Toggle archived (admin only) */}
+          {isAdminOrAbove(profile.role) && (
+            <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={e => setShowArchived(e.target.checked)}
+                className="accent-amber-600"
+              />
+              Đã lưu trữ
+            </label>
+          )}
         </div>
 
         <button

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { STATUS_COLORS } from '@/lib/constants';
-import { formatDateVN, formatDateTimeVN, getChannelColor, isOverdue } from '@/lib/utils';
+import { formatDateVN, formatDateTimeVN, getChannelColor, isOverdue, canDeleteTask, canArchiveTask, deleteRequiresWarning } from '@/lib/utils';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
 import TaskChecklist from './task-checklist';
@@ -172,6 +172,78 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     await updateStatus('Bản nháp', { completed_at: null });
   }, [task, updateStatus]);
 
+  const handleDeleteTask = useCallback(async () => {
+    if (!task) return;
+    const warning = deleteRequiresWarning(task.status)
+      ? `Task "${task.title}" đang được thực hiện. Xóa sẽ mất toàn bộ dữ liệu (checklist, kết quả, bình luận). KHÔNG THỂ HOÀN TÁC!\n\nBạn chắc chắn muốn xóa?`
+      : `Xóa task "${task.title}"? Hành động này không thể hoàn tác.`;
+    if (!window.confirm(warning)) return;
+
+    setUpdating(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
+      const result = await res.json();
+      if (!res.ok) {
+        show(result.error || 'Lỗi xóa task', 'error');
+      } else {
+        show('Đã xóa task.', 'success');
+        onRefresh();
+        onClose();
+      }
+    } catch {
+      show('Lỗi hệ thống', 'error');
+    }
+    setUpdating(false);
+  }, [task, show, onRefresh, onClose]);
+
+  const handleArchiveTask = useCallback(async () => {
+    if (!task) return;
+    if (!window.confirm(`Lưu trữ task "${task.title}"? Task sẽ bị ẩn khỏi danh sách nhưng có thể khôi phục.`)) return;
+
+    setUpdating(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'archive' }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        show(result.error || 'Lỗi lưu trữ', 'error');
+      } else {
+        show('Đã lưu trữ task.', 'success');
+        onRefresh();
+        onClose();
+      }
+    } catch {
+      show('Lỗi hệ thống', 'error');
+    }
+    setUpdating(false);
+  }, [task, show, onRefresh, onClose]);
+
+  const handleRestoreTask = useCallback(async () => {
+    if (!task) return;
+    setUpdating(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore' }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        show(result.error || 'Lỗi khôi phục', 'error');
+      } else {
+        show('Đã khôi phục task.', 'success');
+        onRefresh();
+        onClose();
+      }
+    } catch {
+      show('Lỗi hệ thống', 'error');
+    }
+    setUpdating(false);
+  }, [task, show, onRefresh, onClose]);
+
   const handleSaveDescription = useCallback(async () => {
     if (!task) return;
     setUpdating(true);
@@ -281,6 +353,47 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
           </button>,
           <button key="send" onClick={handleSendApproval} disabled={updating} className={`${btnBase} bg-orange-600 hover:bg-orange-700 text-white`}>
             Gửi duyệt KH
+          </button>
+        );
+      }
+    }
+
+    // Restore button for archived tasks
+    if (task.is_archived && isAdmin) {
+      buttons.push(
+        <button key="restore" onClick={handleRestoreTask} disabled={updating} className={`${btnBase} bg-blue-600 hover:bg-blue-700 text-white`}>
+          Khôi phục
+        </button>
+      );
+    }
+
+    // Archive & Delete buttons (separated visually)
+    if (!task.is_archived) {
+      const showArchive = canArchiveTask(profile.role, task.status, task.created_by, profile.id);
+      const showDelete = canDeleteTask(profile.role, task.status, task.created_by, profile.id);
+
+      if (showArchive || showDelete) {
+        buttons.push(<div key="sep" className="w-px h-5 bg-gray-300 mx-0.5" />);
+      }
+
+      if (showArchive) {
+        buttons.push(
+          <button key="archive" onClick={handleArchiveTask} disabled={updating} className={`${btnBase} bg-white border border-gray-300 hover:bg-gray-100 text-gray-500`} title="Lưu trữ">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+            Lưu trữ
+          </button>
+        );
+      }
+
+      if (showDelete) {
+        buttons.push(
+          <button key="delete" onClick={handleDeleteTask} disabled={updating} className={`${btnBase} bg-white border border-red-200 hover:bg-red-50 text-red-500 hover:text-red-600`} title="Xóa">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Xóa
           </button>
         );
       }

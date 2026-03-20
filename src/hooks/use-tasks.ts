@@ -9,6 +9,7 @@ interface UseTasksOptions {
   role: 'super_admin' | 'admin' | 'editor';
   channelFilter?: string;
   assigneeFilter?: string;
+  showArchived?: boolean;
 }
 
 interface RawCampaign {
@@ -34,6 +35,9 @@ interface RawTaskRow {
   completed_at: string | null;
   admin_note: string;
   created_by: string;
+  is_archived: boolean;
+  archived_at: string | null;
+  archived_by: string | null;
   created_at: string;
   updated_at: string;
   task_channels: RawTaskChannel[];
@@ -43,7 +47,7 @@ interface RawTaskRow {
   campaign: RawCampaign | RawCampaign[] | null;
 }
 
-export function useTasks({ profileId, role, channelFilter, assigneeFilter }: UseTasksOptions) {
+export function useTasks({ profileId, role, channelFilter, assigneeFilter, showArchived }: UseTasksOptions) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,10 +55,10 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
     const supabase = createClient();
     setLoading(true);
 
-    const query = supabase
+    let query = supabase
       .from('tasks')
       .select(`
-        id, title, description, content_type, campaign_id, status, priority, deadline, completed_at, admin_note, created_by, created_at, updated_at,
+        id, title, description, content_type, campaign_id, status, priority, deadline, completed_at, admin_note, created_by, is_archived, archived_at, archived_by, created_at, updated_at,
         task_channels!left(channels:channels(id, name, description, status, created_at, updated_at)),
         task_assignees!left(user:profiles!task_assignees_user_id_fkey(id, email, full_name, role, is_active, created_at, updated_at)),
         task_results!left(id, task_id, type, value, label, created_at, created_by),
@@ -62,6 +66,9 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         campaign:campaigns!left(id, code, name, status)
       `)
       .order('created_at', { ascending: false });
+
+    // Filter by archive status
+    query = query.eq('is_archived', showArchived ? true : false);
 
     const { data, error } = await query;
 
@@ -102,6 +109,9 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
         completed_at: row.completed_at,
         admin_note: row.admin_note,
         created_by: row.created_by,
+        is_archived: row.is_archived,
+        archived_at: row.archived_at,
+        archived_by: row.archived_by,
         created_at: row.created_at,
         updated_at: row.updated_at,
         channels,
@@ -135,7 +145,7 @@ export function useTasks({ profileId, role, channelFilter, assigneeFilter }: Use
 
     setTasks(processed);
     setLoading(false);
-  }, [profileId, role, channelFilter, assigneeFilter]);
+  }, [profileId, role, channelFilter, assigneeFilter, showArchived]);
 
   useEffect(() => {
     fetchTasks();

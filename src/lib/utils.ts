@@ -63,6 +63,24 @@ export function isSuperAdmin(role: string): boolean {
   return role === 'super_admin';
 }
 
+export function canDeleteTask(role: string, status: string, createdBy: string, userId: string): boolean {
+  if (status === 'Đã đăng') return false;
+  if (role === 'super_admin') return true;
+  if (role === 'admin') return ['Bản nháp', 'Chờ duyệt KH'].includes(status);
+  if (role === 'editor') return status === 'Bản nháp' && createdBy === userId;
+  return false;
+}
+
+export function canArchiveTask(role: string, status: string, createdBy: string, userId: string): boolean {
+  if (role === 'super_admin' || role === 'admin') return true;
+  if (role === 'editor') return status === 'Bản nháp' && createdBy === userId;
+  return false;
+}
+
+export function deleteRequiresWarning(status: string): boolean {
+  return ['Đang làm', 'Chờ duyệt KQ'].includes(status);
+}
+
 export function generateCampaignCode(): string {
   const now = new Date();
   const y = now.getFullYear();

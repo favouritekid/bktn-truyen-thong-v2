@@ -23,6 +23,9 @@ export interface Task {
   admin_note: string;
   campaign_id?: string | null;
   created_by: string;
+  is_archived: boolean;
+  archived_at: string | null;
+  archived_by: string | null;
   created_at: string;
   updated_at: string;
   // Joined data
