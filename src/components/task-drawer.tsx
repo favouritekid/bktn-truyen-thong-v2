@@ -271,89 +271,61 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
   // Render action buttons based on role + status
   const renderActions = () => {
     const buttons: React.ReactNode[] = [];
-    const btnBase = 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1';
+    const btnPrimary = 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1 bg-gray-900 hover:bg-gray-800 text-white';
+    const btnSecondary = 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1 border border-gray-200 hover:bg-gray-50 text-gray-700';
+    const btnDanger = 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1 text-red-600 hover:bg-red-50 border border-gray-200';
 
     if (isEditor) {
       if (task.status === 'Bản nháp') {
         buttons.push(
-          <button key="edit" onClick={() => onEdit(task)} className={`${btnBase} bg-white border border-gray-300 hover:bg-gray-50 text-gray-700`}>
-            Sửa
-          </button>,
-          <button key="send" onClick={handleSendApproval} disabled={updating} className={`${btnBase} bg-orange-600 hover:bg-orange-700 text-white`}>
-            Gửi duyệt KH
-          </button>
+          <button key="edit" onClick={() => onEdit(task)} className={btnSecondary}>Sửa</button>,
+          <button key="send" onClick={handleSendApproval} disabled={updating} className={btnPrimary}>Gửi duyệt KH</button>
         );
       } else if (task.status === 'Đã duyệt') {
         buttons.push(
-          <button key="start" onClick={handleStartWork} disabled={updating} className={`${btnBase} bg-blue-600 hover:bg-blue-700 text-white`}>
-            Bắt đầu thực hiện
-          </button>
+          <button key="start" onClick={handleStartWork} disabled={updating} className={btnPrimary}>Bắt đầu thực hiện</button>
         );
       } else if (task.status === 'Đang làm') {
         buttons.push(
-          <button key="editDesc" onClick={() => setEditingDescription(true)} className={`${btnBase} bg-white border border-gray-300 hover:bg-gray-50 text-gray-700`}>
-            Sửa mô tả
-          </button>
+          <button key="editDesc" onClick={() => setEditingDescription(true)} className={btnSecondary}>Sửa mô tả</button>
         );
         if (allChecklistDone) {
           buttons.push(
-            <button key="sendResult" onClick={handleSendResultApproval} disabled={updating} className={`${btnBase} bg-green-600 hover:bg-green-700 text-white`}>
-              Gửi duyệt KQ
-            </button>
+            <button key="sendResult" onClick={handleSendResultApproval} disabled={updating} className={btnPrimary}>Gửi duyệt KQ</button>
           );
         } else {
           buttons.push(
-            <span key="checklistWarn" className="text-[11px] text-amber-600 italic py-1.5">
-              Hoàn thành checklist để gửi duyệt
-            </span>
+            <span key="checklistWarn" className="text-[11px] text-amber-600 italic py-1.5">Hoàn thành checklist để gửi duyệt</span>
           );
         }
       } else if (task.status === 'Chờ duyệt KH' || task.status === 'Chờ duyệt KQ') {
-        buttons.push(
-          <span key="waiting" className="text-xs text-gray-400 italic py-1.5">
-            Đang chờ Admin duyệt...
-          </span>
-        );
+        buttons.push(<span key="waiting" className="text-xs text-gray-400 italic py-1.5">Đang chờ Admin duyệt...</span>);
       }
     }
 
     if (isAdmin) {
       if (task.status === 'Chờ duyệt KH') {
         buttons.push(
-          <button key="reject" onClick={handleRejectContent} disabled={updating} className={`${btnBase} bg-red-600 hover:bg-red-700 text-white`}>
-            Từ chối
-          </button>,
-          <button key="approve" onClick={handleApproveContent} disabled={updating} className={`${btnBase} bg-green-600 hover:bg-green-700 text-white`}>
-            Duyệt KH
-          </button>
+          <button key="reject" onClick={handleRejectContent} disabled={updating} className={btnDanger}>Từ chối</button>,
+          <button key="approve" onClick={handleApproveContent} disabled={updating} className={btnPrimary}>Duyệt KH</button>
         );
       } else if (task.status === 'Chờ duyệt KQ') {
         buttons.push(
-          <button key="return" onClick={handleRejectResult} disabled={updating} className={`${btnBase} bg-red-600 hover:bg-red-700 text-white`}>
-            Trả lại
-          </button>,
-          <button key="approveResult" onClick={handleApproveResult} disabled={updating} className={`${btnBase} bg-green-600 hover:bg-green-700 text-white`}>
-            Duyệt KQ
-          </button>
+          <button key="return" onClick={handleRejectResult} disabled={updating} className={btnDanger}>Trả lại</button>,
+          <button key="approveResult" onClick={handleApproveResult} disabled={updating} className={btnPrimary}>Duyệt KQ</button>
         );
       }
 
       if (['Đã duyệt', 'Đang làm', 'Đã đăng'].includes(task.status)) {
         buttons.push(
-          <button key="toDraft" onClick={handleBackToDraft} disabled={updating} className={`${btnBase} bg-gray-500 hover:bg-gray-600 text-white`}>
-            Về nháp
-          </button>
+          <button key="toDraft" onClick={handleBackToDraft} disabled={updating} className={btnSecondary}>Về nháp</button>
         );
       }
 
       if (task.status === 'Bản nháp') {
         buttons.push(
-          <button key="edit" onClick={() => onEdit(task)} className={`${btnBase} bg-white border border-gray-300 hover:bg-gray-50 text-gray-700`}>
-            Sửa
-          </button>,
-          <button key="send" onClick={handleSendApproval} disabled={updating} className={`${btnBase} bg-orange-600 hover:bg-orange-700 text-white`}>
-            Gửi duyệt KH
-          </button>
+          <button key="edit" onClick={() => onEdit(task)} className={btnSecondary}>Sửa</button>,
+          <button key="send" onClick={handleSendApproval} disabled={updating} className={btnPrimary}>Gửi duyệt KH</button>
         );
       }
     }
@@ -361,27 +333,23 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     // Restore button for archived tasks
     if (task.is_archived && isAdmin) {
       buttons.push(
-        <button key="restore" onClick={handleRestoreTask} disabled={updating} className={`${btnBase} bg-blue-600 hover:bg-blue-700 text-white`}>
-          Khôi phục
-        </button>
+        <button key="restore" onClick={handleRestoreTask} disabled={updating} className={btnPrimary}>Khôi phục</button>
       );
     }
 
-    // Archive & Delete buttons (separated visually)
+    // Archive & Delete buttons
     if (!task.is_archived) {
       const showArchive = canArchiveTask(profile.role, task.status, task.created_by, profile.id);
       const showDelete = canDeleteTask(profile.role, task.status, task.created_by, profile.id);
 
       if (showArchive || showDelete) {
-        buttons.push(<div key="sep" className="w-px h-5 bg-gray-300 mx-0.5" />);
+        buttons.push(<div key="sep" className="w-px h-5 bg-gray-200 mx-0.5" />);
       }
 
       if (showArchive) {
         buttons.push(
-          <button key="archive" onClick={handleArchiveTask} disabled={updating} className={`${btnBase} bg-white border border-gray-300 hover:bg-gray-100 text-gray-500`} title="Lưu trữ">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-            </svg>
+          <button key="archive" onClick={handleArchiveTask} disabled={updating} className={btnSecondary} title="Lưu trữ">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
             Lưu trữ
           </button>
         );
@@ -389,10 +357,8 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
       if (showDelete) {
         buttons.push(
-          <button key="delete" onClick={handleDeleteTask} disabled={updating} className={`${btnBase} bg-white border border-red-200 hover:bg-red-50 text-red-500 hover:text-red-600`} title="Xóa">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+          <button key="delete" onClick={handleDeleteTask} disabled={updating} className={btnDanger} title="Xóa">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
             Xóa
           </button>
         );
@@ -420,104 +386,81 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
   return (
     <>
       {/* Overlay */}
-      <div className="fixed inset-0 bg-black/50 z-[60]" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/30 z-[60]" onClick={onClose} />
 
       {/* Drawer */}
-      <div className="fixed top-0 right-0 h-full w-full max-w-xl bg-gray-50 shadow-2xl z-[70] flex flex-col animate-[slideInRight_0.2s_ease]">
+      <div className="fixed top-0 right-0 h-full w-full max-w-xl bg-white shadow-lg border-l border-gray-200 z-[70] flex flex-col animate-[slideInRight_0.2s_ease]">
 
         {/* ===== HEADER ===== */}
-        <div className="bg-white border-b border-gray-200">
-          {/* Color strip */}
-          <div className="h-1" style={{ backgroundColor: statusColor }} />
-
+        <div className="border-b border-gray-100">
           <div className="px-5 pt-4 pb-3">
             {/* Close */}
             <div className="flex justify-end mb-2">
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md w-7 h-7 flex items-center justify-center transition-colors">
-                &times;
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
             {/* Title */}
-            <h2 className="text-lg font-bold text-gray-900 leading-snug mb-3">{task.title}</h2>
+            <h2 className="text-base font-semibold text-gray-900 leading-snug mb-3">{task.title}</h2>
 
-            {/* Badges row */}
-            <div className="flex flex-wrap items-center gap-2 mb-3">
+            {/* Meta: status dot + tags inline */}
+            <div className="flex flex-wrap items-center gap-2 mb-3 text-[11px]">
+              <span className="inline-flex items-center gap-1.5 font-medium text-gray-700">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: statusColor }} />
+                {task.status}
+              </span>
               {(task.channels || []).map(ch => (
-                <span key={ch.id} className="text-[11px] font-semibold text-white px-2.5 py-1 rounded" style={{ backgroundColor: getChannelColor(ch.name) }}>
+                <span key={ch.id} className="inline-flex items-center gap-1 text-gray-500">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getChannelColor(ch.name) }} />
                   {ch.name}
                 </span>
               ))}
-              <span className="text-[11px] font-semibold text-white px-2.5 py-1 rounded" style={{ backgroundColor: statusColor }}>
-                {task.status}
-              </span>
-              {task.campaign && (
-                <span className="text-[11px] font-medium text-indigo-700 bg-indigo-100 px-2.5 py-1 rounded">
-                  {task.campaign.name}
-                </span>
-              )}
-              {task.content_type && (
-                <span className="text-[11px] font-medium text-gray-600 bg-gray-100 px-2.5 py-1 rounded">
-                  {task.content_type}
-                </span>
-              )}
-              <span className={`text-[11px] font-medium px-2.5 py-1 rounded ${
-                task.priority === 'Cao' ? 'bg-red-100 text-red-700' :
-                task.priority === 'Trung bình' ? 'bg-yellow-100 text-yellow-700' :
-                'bg-green-100 text-green-700'
+              {task.campaign && <span className="text-gray-400">{task.campaign.name}</span>}
+              {task.content_type && <span className="text-gray-400">{task.content_type}</span>}
+              <span className={`font-medium ${
+                task.priority === 'Cao' ? 'text-orange-600' :
+                task.priority === 'Trung bình' ? 'text-gray-500' : 'text-gray-400'
               }`}>
                 {task.priority}
               </span>
             </div>
 
-            {/* Meta rows */}
-            <div className="space-y-2 text-sm">
-              {/* Creator */}
+            {/* Properties grid */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-3">
               {task.creator && (
-                <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                  <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  <span>Tạo bởi: <span className="font-medium text-gray-700">{task.creator.full_name}</span></span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-400 w-14 shrink-0">Tạo bởi</span>
+                  <span className="text-gray-700 font-medium truncate">{task.creator.full_name}</span>
                 </div>
               )}
-
-              {/* Assignees + Deadline */}
-              <div className="flex items-center justify-between">
-                {/* Assignees */}
+              {task.deadline && (
                 <div className="flex items-center gap-1.5">
-                  <div className="flex -space-x-2">
+                  <span className="text-gray-400 w-14 shrink-0">Deadline</span>
+                  <span className={`font-medium ${overdue ? 'text-red-600' : 'text-gray-700'}`}>
+                    {formatDateTimeVN(task.deadline)}{overdue ? ' (Trễ)' : ''}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 col-span-2">
+                <span className="text-gray-400 w-14 shrink-0">Giao cho</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="flex -space-x-1.5">
                     {(task.assignees || []).slice(0, 4).map(a => (
                       <div
                         key={a.id}
                         title={a.full_name}
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white"
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-white border border-white"
                         style={{ backgroundColor: getAvatarColor(a.full_name) }}
                       >
                         {getInitials(a.full_name)}
                       </div>
                     ))}
-                    {(task.assignees?.length || 0) > 4 && (
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-600 bg-gray-200 border-2 border-white">
-                        +{task.assignees!.length - 4}
-                      </div>
-                    )}
                   </div>
-                  <span className="text-xs text-gray-500 ml-1">
+                  <span className="text-gray-600 text-[11px] truncate">
                     {task.assignees?.map(a => a.full_name).join(', ') || 'Chưa gán'}
                   </span>
                 </div>
-
-                {/* Deadline */}
-                {task.deadline && (
-                  <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded ${
-                    overdue ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    <span>&#128197;</span>
-                    <span>{formatDateTimeVN(task.deadline)}</span>
-                    {overdue && <span>(Trễ!)</span>}
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -530,110 +473,89 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
         {/* ===== BODY - scrollable ===== */}
         <div className="flex-1 overflow-y-auto">
-          <div className="px-4 py-3 space-y-3">
+          <div className="px-5 py-4 space-y-4">
 
-            {/* ========== GROUP 1: THÔNG TIN TASK ========== */}
-            <div className="rounded-xl bg-blue-50/60 border border-blue-100 overflow-hidden">
-              {/* Group header */}
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-100/60 border-b border-blue-100">
-                <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h3 className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Thông tin task</h3>
+            {/* Description */}
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Mô tả</h4>
+                {!editingDescription && (isAdmin || (isEditor && ['Bản nháp', 'Đang làm'].includes(task.status))) && (
+                  <button onClick={() => setEditingDescription(true)} className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium">Sửa</button>
+                )}
               </div>
-
-              <div className="p-3 space-y-2.5">
-                {/* Description */}
-                <section className="bg-white rounded-lg border border-blue-100 p-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <h4 className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Mô tả</h4>
-                    {!editingDescription && (isAdmin || (isEditor && ['Bản nháp', 'Đang làm'].includes(task.status))) && (
-                      <button onClick={() => setEditingDescription(true)} className="text-[11px] text-blue-600 hover:text-blue-700 font-medium">
-                        Sửa
-                      </button>
-                    )}
+              {editingDescription ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={descriptionDraft}
+                    onChange={e => setDescriptionDraft(e.target.value)}
+                    rows={5}
+                    className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={handleSaveDescription} disabled={updating} className="px-3 py-1 bg-gray-900 text-white text-xs rounded-md hover:bg-gray-800 disabled:opacity-50">Lưu</button>
+                    <button onClick={() => { setEditingDescription(false); setDescriptionDraft(task.description || ''); }} className="px-3 py-1 text-gray-600 text-xs rounded-md hover:bg-gray-100">Hủy</button>
                   </div>
-                  {editingDescription ? (
-                    <div className="space-y-2">
-                      <textarea
-                        value={descriptionDraft}
-                        onChange={e => setDescriptionDraft(e.target.value)}
-                        rows={5}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        autoFocus
-                      />
-                      <div className="flex gap-2">
-                        <button onClick={handleSaveDescription} disabled={updating} className="px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50">Lưu</button>
-                        <button onClick={() => { setEditingDescription(false); setDescriptionDraft(task.description || ''); }} className="px-3 py-1 bg-gray-200 text-gray-600 text-xs rounded-lg hover:bg-gray-300">Hủy</button>
-                      </div>
-                    </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-700 whitespace-pre-wrap min-h-[24px]">
+                  {task.description || <span className="text-gray-400 italic">Chưa có mô tả.</span>}
+                </p>
+              )}
+            </section>
+
+            <div className="border-t border-gray-100" />
+
+            {/* Checklist */}
+            <section>
+              <TaskChecklist task={task} onRefresh={handleRefresh} />
+            </section>
+
+            <div className="border-t border-gray-100" />
+
+            {/* Links */}
+            <section>
+              <TaskLinks task={task} onRefresh={onRefresh} />
+            </section>
+
+            {/* Admin Note */}
+            {(task.admin_note || isAdmin) && (
+              <>
+                <div className="border-t border-gray-100" />
+                <section>
+                  <h4 className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider mb-2">Ghi chú Admin</h4>
+                  {isAdmin ? (
+                    <AdminNoteEditor task={task} onRefresh={onRefresh} />
                   ) : (
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap min-h-[32px]">
-                      {task.description || <span className="text-gray-400 italic">Chưa có mô tả.</span>}
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                      {task.admin_note || 'Không có ghi chú.'}
                     </p>
                   )}
                 </section>
-
-                {/* Checklist */}
-                <section className="bg-white rounded-lg border border-blue-100 p-3">
-                  <TaskChecklist task={task} onRefresh={handleRefresh} />
-                </section>
-
-                {/* Links */}
-                <section className="bg-white rounded-lg border border-blue-100 p-3">
-                  <TaskLinks task={task} onRefresh={onRefresh} />
-                </section>
-
-                {/* Admin Note */}
-                {(task.admin_note || isAdmin) && (
-                  <section className="bg-amber-50 rounded-lg border border-amber-200 p-3">
-                    <h4 className="text-[11px] font-bold text-amber-700 uppercase tracking-wide mb-1.5">Ghi chú Admin</h4>
-                    {isAdmin ? (
-                      <AdminNoteEditor task={task} onRefresh={onRefresh} />
-                    ) : (
-                      <p className="text-sm text-amber-800 whitespace-pre-wrap">
-                        {task.admin_note || 'Không có ghi chú.'}
-                      </p>
-                    )}
-                  </section>
-                )}
-              </div>
-            </div>
-
-            {/* ========== GROUP 2: BÁO CÁO KẾT QUẢ ========== */}
-            {['Đang làm', 'Chờ duyệt KQ', 'Đã đăng'].includes(task.status) && (
-              <div className="rounded-xl bg-purple-50/60 border border-purple-100 overflow-hidden">
-                {/* Group header with count */}
-                <div className="flex items-center gap-2 px-4 py-2.5 bg-purple-100/60 border-b border-purple-100">
-                  <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <h3 className="text-[11px] font-bold text-purple-700 uppercase tracking-wider">Báo cáo kết quả</h3>
-                </div>
-
-                <div className="p-3">
-                  <TaskSubmissions task={task} onRefresh={handleRefresh} />
-                </div>
-              </div>
+              </>
             )}
 
-            {/* ========== GROUP 3: TRAO ĐỔI ========== */}
-            <div className="rounded-xl bg-green-50/60 border border-green-100 overflow-hidden">
-              {/* Group header */}
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-green-100/60 border-b border-green-100">
-                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                <h3 className="text-[11px] font-bold text-green-700 uppercase tracking-wider">Trao đổi</h3>
-              </div>
+            {/* Submissions */}
+            {['Đang làm', 'Chờ duyệt KQ', 'Đã đăng'].includes(task.status) && (
+              <>
+                <div className="border-t border-gray-100" />
+                <section>
+                  <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Báo cáo kết quả</h4>
+                  <TaskSubmissions task={task} onRefresh={handleRefresh} />
+                </section>
+              </>
+            )}
 
-              <div className="p-3">
-                <TaskComments task={task} onRefresh={onRefresh} />
-              </div>
-            </div>
+            <div className="border-t border-gray-100" />
+
+            {/* Comments */}
+            <section>
+              <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Trao đổi</h4>
+              <TaskComments task={task} onRefresh={onRefresh} />
+            </section>
 
             {/* Footer info */}
-            <div className="flex items-center justify-between text-[10px] text-gray-400 px-1 pt-1 pb-2">
+            <div className="flex items-center justify-between text-[10px] text-gray-400 pt-2 pb-1 border-t border-gray-100">
               <div className="space-x-2">
                 <span>Tạo: {formatDateVN(task.created_at)}</span>
                 <span>Cập nhật: {formatDateVN(task.updated_at)}</span>
@@ -684,11 +606,11 @@ function AdminNoteEditor({ task, onRefresh }: { task: Task; onRefresh: () => voi
         value={note}
         onChange={e => { setNote(e.target.value); setDirty(true); }}
         rows={3}
-        className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+        className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
         placeholder="Ghi chú cho nhân viên..."
       />
       {dirty && (
-        <button onClick={save} disabled={saving} className="px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 disabled:opacity-50">
+        <button onClick={save} disabled={saving} className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-md hover:bg-gray-800 disabled:opacity-50">
           {saving ? 'Đang lưu...' : 'Lưu ghi chú'}
         </button>
       )}

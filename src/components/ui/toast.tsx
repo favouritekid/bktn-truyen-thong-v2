@@ -33,11 +33,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  const bgMap: Record<ToastType, string> = {
-    success: 'bg-green-600',
-    error: 'bg-red-600',
-    info: 'bg-blue-600',
-    warning: 'bg-amber-600',
+  const styleMap: Record<ToastType, string> = {
+    success: 'bg-white border-green-200 text-green-800',
+    error: 'bg-white border-red-200 text-red-800',
+    info: 'bg-white border-gray-200 text-gray-800',
+    warning: 'bg-white border-amber-200 text-amber-800',
   };
 
   return (
@@ -47,13 +47,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map(t => (
           <div
             key={t.id}
-            className={`${bgMap[t.type]} text-white px-4 py-3 rounded-lg shadow-lg text-sm flex items-center justify-between gap-3 animate-[slideIn_0.3s_ease]`}
+            className={`${styleMap[t.type]} border px-4 py-2.5 rounded-md shadow-sm text-sm flex items-center justify-between gap-3 animate-[slideIn_0.3s_ease]`}
             role="alert"
           >
             <span>{t.message}</span>
             <button
               onClick={() => dismiss(t.id)}
-              className="text-white/80 hover:text-white text-lg leading-none font-bold"
+              className="text-gray-400 hover:text-gray-600 text-lg leading-none"
             >
               &times;
             </button>

@@ -35,15 +35,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-      <form onSubmit={handleLogin} className="bg-white rounded-xl shadow-lg p-10 w-full max-w-sm text-center">
-        <h2 className="text-xl font-bold text-blue-800 mb-1">Quản lý Truyền thông</h2>
-        <p className="text-sm text-gray-500 mb-8">Trường CĐ Bách khoa Tây Nguyên</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <form onSubmit={handleLogin} className="bg-white rounded-lg border border-gray-200 shadow-sm p-8 w-full max-w-sm text-center">
+        <h2 className="text-lg font-semibold text-gray-900 mb-0.5">Quản lý Truyền thông</h2>
+        <p className="text-xs text-gray-400 mb-8">Trường CĐ Bách khoa Tây Nguyên</p>
 
         <input
           type="email" placeholder="Email" value={email}
           onChange={e => setEmail(e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm mb-3 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           onKeyDown={e => e.key === 'Enter' && document.getElementById('pw')?.focus()}
         />
         <div className="mb-4">
@@ -52,18 +52,18 @@ export default function LoginPage() {
             placeholder="Mật khẩu"
             value={password}
             onChange={e => setPassword(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm pr-12 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
         </div>
 
         <button
           type="submit" disabled={loading}
-          className="w-full py-3 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg text-sm disabled:opacity-60 transition-colors"
+          className="w-full py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-md text-sm disabled:opacity-60 transition-colors"
         >
           {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
 
-        {error && <p className="text-red-600 text-sm mt-4">{error}</p>}
+        {error && <p className="text-red-600 text-xs mt-4">{error}</p>}
       </form>
     </div>
   );
