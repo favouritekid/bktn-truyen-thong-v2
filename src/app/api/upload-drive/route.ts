@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
         body: stream,
       },
       fields: 'id, name, webViewLink',
+      supportsAllDrives: true,
     });
 
     // Make file accessible to anyone with the link
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
         role: 'reader',
         type: 'anyone',
       },
+      supportsAllDrives: true,
     });
 
     return NextResponse.json({
