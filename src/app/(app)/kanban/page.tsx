@@ -17,10 +17,11 @@ export default function KanbanPage() {
   const { channels: dbChannels } = useChannels();
   const [channelFilter, setChannelFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showPublished, setShowPublished] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [formTask, setFormTask] = useState<Task | null | undefined>(undefined); // undefined = closed, null = create, Task = edit
+  const [formTask, setFormTask] = useState<Task | null | undefined>(undefined);
   const [allEditors, setAllEditors] = useState<Profile[]>([]);
 
   const { tasks, loading, refresh } = useTasks({
@@ -31,7 +32,6 @@ export default function KanbanPage() {
     showArchived,
   });
 
-  // Load editors for filter
   useEffect(() => {
     async function loadEditors() {
       const supabase = createClient();
@@ -45,6 +45,20 @@ export default function KanbanPage() {
     loadEditors();
   }, []);
 
+  // Filter tasks by search query
+  const filteredTasks = useMemo(() => {
+    if (!searchQuery.trim()) return tasks;
+    const q = searchQuery.toLowerCase();
+    return tasks.filter(t =>
+      t.title.toLowerCase().includes(q) ||
+      t.description?.toLowerCase().includes(q) ||
+      t.assignees?.some(a => a.full_name.toLowerCase().includes(q)) ||
+      t.channels?.some(c => c.name.toLowerCase().includes(q)) ||
+      t.campaign?.name.toLowerCase().includes(q) ||
+      t.id.toLowerCase().includes(q)
+    );
+  }, [tasks, searchQuery]);
+
   const visibleStatuses = useMemo(() => {
     if (showPublished) return [...STATUSES];
     return STATUSES.filter(s => s !== 'Đã đăng');
@@ -55,15 +69,16 @@ export default function KanbanPage() {
     for (const s of STATUSES) {
       map[s] = [];
     }
-    for (const t of tasks) {
+    for (const t of filteredTasks) {
       if (map[t.status]) {
         map[t.status].push(t);
       }
     }
     return map;
-  }, [tasks]);
+  }, [filteredTasks]);
 
-  // Keep selectedTask in sync with realtime data
+  const totalCount = filteredTasks.length;
+
   const selectedTaskRef = useRef<Task | null>(null);
   useEffect(() => {
     if (selectedTaskRef.current) {
@@ -71,7 +86,6 @@ export default function KanbanPage() {
       if (updated) {
         setSelectedTask(updated);
       } else {
-        // Task was deleted or archived — close drawer
         selectedTaskRef.current = null;
         setSelectedTask(null);
       }
@@ -101,99 +115,130 @@ export default function KanbanPage() {
     setFormTask(undefined);
   }, []);
 
+  // Column background tints (very subtle, Trello-style)
+  const columnBg: Record<string, string> = {
+    'Bản nháp': 'bg-gray-50',
+    'Chờ duyệt KH': 'bg-orange-50/60',
+    'Đã duyệt': 'bg-blue-50/60',
+    'Đang làm': 'bg-amber-50/60',
+    'Chờ duyệt KQ': 'bg-purple-50/60',
+    'Đã đăng': 'bg-green-50/60',
+  };
+
   return (
-    <div>
+    <div className="flex flex-col h-[calc(100vh-2rem)]">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Channel filter */}
-          <select
-            value={channelFilter}
-            onChange={e => setChannelFilter(e.target.value)}
-            className="border border-gray-200 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-gray-700"
-          >
-            <option value="">Tất cả kênh</option>
-            {dbChannels.map(c => (
-              <option key={c.id} value={c.name}>{c.name}</option>
-            ))}
-          </select>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {/* Left: Create button + Search */}
+        <button
+          onClick={openCreateForm}
+          className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium rounded-md transition-colors flex items-center gap-1 shrink-0"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          Tạo Task
+        </button>
 
-          {/* Assignee filter (admin only) */}
-          {isAdminOrAbove(profile.role) && (
-            <select
-              value={assigneeFilter}
-              onChange={e => setAssigneeFilter(e.target.value)}
-              className="border border-gray-200 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-gray-700"
+        {/* Search */}
+        <div className="relative flex-1 max-w-[280px]">
+          <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Tìm task..."
+            className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-gray-700 placeholder-gray-400"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
-              <option value="">Tất cả NV</option>
-              {allEditors.map(e => (
-                <option key={e.id} value={e.id}>{e.full_name}</option>
-              ))}
-            </select>
-          )}
-
-          {/* Toggle published */}
-          <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={showPublished}
-              onChange={e => setShowPublished(e.target.checked)}
-              className="accent-indigo-500 w-3.5 h-3.5"
-            />
-            Đã đăng
-          </label>
-
-          {/* Toggle archived (admin only) */}
-          {isAdminOrAbove(profile.role) && (
-            <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={showArchived}
-                onChange={e => setShowArchived(e.target.checked)}
-                className="accent-amber-500 w-3.5 h-3.5"
-              />
-              Lưu trữ
-            </label>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           )}
         </div>
 
-        <button
-          onClick={openCreateForm}
-          className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium rounded-md transition-colors"
+        {/* Filters */}
+        <select
+          value={channelFilter}
+          onChange={e => setChannelFilter(e.target.value)}
+          className="border border-gray-200 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-gray-700"
         >
-          + Tạo Task mới
-        </button>
+          <option value="">Kênh</option>
+          {dbChannels.map(c => (
+            <option key={c.id} value={c.name}>{c.name}</option>
+          ))}
+        </select>
+
+        {isAdminOrAbove(profile.role) && (
+          <select
+            value={assigneeFilter}
+            onChange={e => setAssigneeFilter(e.target.value)}
+            className="border border-gray-200 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-gray-700"
+          >
+            <option value="">Nhân viên</option>
+            {allEditors.map(e => (
+              <option key={e.id} value={e.id}>{e.full_name}</option>
+            ))}
+          </select>
+        )}
+
+        <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+          <input type="checkbox" checked={showPublished} onChange={e => setShowPublished(e.target.checked)} className="accent-indigo-500 w-3.5 h-3.5" />
+          Đã đăng
+        </label>
+
+        {isAdminOrAbove(profile.role) && (
+          <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+            <input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} className="accent-amber-500 w-3.5 h-3.5" />
+            Lưu trữ
+          </label>
+        )}
+
+        {/* Total count */}
+        <span className="text-[11px] text-gray-400 ml-auto">{totalCount} task{searchQuery && ` (tìm: "${searchQuery}")`}</span>
       </div>
 
       {/* Kanban board */}
       {loading ? (
-        <div className="text-center py-20 text-gray-400">
-          <p className="text-lg">Đang tải...</p>
+        <div className="flex-1 flex items-center justify-center text-gray-400">
+          <p className="text-sm">Đang tải...</p>
         </div>
       ) : (
-        <div className="flex gap-2 overflow-x-auto pb-4" style={{ minHeight: 'calc(100vh - 140px)' }}>
+        <div className="flex-1 flex gap-2.5 overflow-x-auto pb-2">
           {visibleStatuses.map(status => {
             const statusTasks = tasksByStatus[status] || [];
             const color = STATUS_COLORS[status] || '#8B8F96';
+            const bg = columnBg[status] || 'bg-gray-50';
 
             return (
               <div
                 key={status}
-                className="flex-shrink-0 w-[290px] flex flex-col"
+                className={`flex-shrink-0 w-[280px] ${bg} rounded-lg flex flex-col`}
               >
                 {/* Column header */}
-                <div className="px-2 py-2 flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                    <span className="text-xs font-semibold text-gray-700">{status}</span>
+                <div className="px-3 py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
+                    <span className="text-[13px] font-semibold text-gray-800">{status}</span>
                   </div>
-                  <span className="text-[11px] text-gray-400 font-medium">{statusTasks.length}</span>
+                  <span className="text-[11px] text-gray-400 bg-white/80 px-1.5 py-0.5 rounded font-medium">
+                    {statusTasks.length}
+                  </span>
                 </div>
 
                 {/* Cards */}
-                <div className="flex-1 space-y-1.5 overflow-y-auto max-h-[calc(100vh-200px)]">
+                <div className="flex-1 px-1.5 pb-1.5 space-y-1.5 overflow-y-auto">
                   {statusTasks.length === 0 ? (
-                    <p className="text-center text-xs text-gray-400 py-8">Trống</p>
+                    <div className="text-center py-8">
+                      <p className="text-[11px] text-gray-400">Chưa có task</p>
+                    </div>
                   ) : (
                     statusTasks.map(task => (
                       <TaskCard
@@ -204,6 +249,21 @@ export default function KanbanPage() {
                     ))
                   )}
                 </div>
+
+                {/* Add button at bottom of first column */}
+                {status === 'Bản nháp' && (
+                  <div className="px-1.5 pb-2">
+                    <button
+                      onClick={openCreateForm}
+                      className="w-full py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:bg-white/80 rounded-md transition-colors flex items-center justify-center gap-1"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      Thêm task
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -212,21 +272,12 @@ export default function KanbanPage() {
 
       {/* Drawer */}
       {selectedTask && (
-        <TaskDrawer
-          task={selectedTask}
-          onClose={closeDrawer}
-          onRefresh={refresh}
-          onEdit={openEditForm}
-        />
+        <TaskDrawer task={selectedTask} onClose={closeDrawer} onRefresh={refresh} onEdit={openEditForm} />
       )}
 
       {/* Form modal */}
       {formTask !== undefined && (
-        <TaskForm
-          task={formTask}
-          onClose={closeForm}
-          onSaved={refresh}
-        />
+        <TaskForm task={formTask} onClose={closeForm} onSaved={refresh} />
       )}
     </div>
   );

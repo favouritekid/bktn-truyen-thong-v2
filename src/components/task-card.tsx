@@ -1,6 +1,5 @@
 'use client';
 
-import { STATUS_COLORS } from '@/lib/constants';
 import { formatDateTimeVN, getChannelColor, isOverdue, isDueSoon } from '@/lib/utils';
 import type { Task } from '@/lib/types';
 
@@ -10,7 +9,6 @@ interface TaskCardProps {
 }
 
 export default function TaskCard({ task, onClick }: TaskCardProps) {
-  const statusColor = STATUS_COLORS[task.status] || '#8B8F96';
   const overdue = isOverdue(task.deadline) && !['Đã đăng'].includes(task.status);
   const dueSoon = isDueSoon(task.deadline) && !['Đã đăng'].includes(task.status);
 
@@ -31,65 +29,51 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-md border border-gray-150 cursor-pointer hover:bg-gray-50 transition-colors px-3 py-2"
+      className="bg-white rounded-lg border border-gray-200 cursor-pointer hover:border-gray-300 hover:shadow-sm transition-all px-3 py-2.5 group"
     >
+      {/* Labels row: channels + campaign + priority */}
+      {((task.channels?.length || 0) > 0 || task.campaign || task.priority === 'Cao') && (
+        <div className="flex items-center gap-1 flex-wrap mb-1.5">
+          {(task.channels || []).map(ch => (
+            <span
+              key={ch.id}
+              className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+              style={{ backgroundColor: getChannelColor(ch.name) + '18', color: getChannelColor(ch.name) }}
+            >
+              {ch.name}
+            </span>
+          ))}
+          {task.campaign && (
+            <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+              {task.campaign.name}
+            </span>
+          )}
+          {task.priority === 'Cao' && (
+            <span className="text-[10px] font-semibold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">
+              Urgent
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Title */}
-      <h4 className="text-[13px] font-medium text-gray-900 leading-snug line-clamp-2 mb-1.5">
+      <h4 className="text-[13px] font-medium text-gray-900 leading-snug line-clamp-2 mb-2">
         {task.title}
       </h4>
 
-      {/* Meta line: status dot + channels + campaign */}
-      <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-        {/* Status dot + label */}
-        <span className="inline-flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: statusColor }} />
-          <span className="text-[11px] text-gray-500">{task.status}</span>
-        </span>
-
-        {/* Separator */}
-        {(task.channels?.length || 0) > 0 && <span className="text-gray-300">·</span>}
-
-        {/* Channels as text */}
-        {(task.channels || []).map(ch => (
-          <span key={ch.id} className="inline-flex items-center gap-1 text-[11px] text-gray-500">
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: getChannelColor(ch.name) }} />
-            {ch.name}
-          </span>
-        ))}
-
-        {/* Campaign */}
-        {task.campaign && (
-          <>
-            <span className="text-gray-300">·</span>
-            <span className="text-[11px] text-gray-400">{task.campaign.name}</span>
-          </>
-        )}
-
-        {/* Priority */}
-        {task.priority === 'Cao' && (
-          <span className="text-[10px] font-medium text-orange-600 bg-orange-50 px-1 py-0.5 rounded">Urgent</span>
-        )}
-      </div>
-
-      {/* Bottom row: deadline + creator + avatars */}
+      {/* Bottom row */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           {/* Deadline */}
           {task.deadline && (
             <span className={`inline-flex items-center gap-1 text-[11px] ${
-              overdue ? 'text-red-600' : dueSoon ? 'text-amber-600' : 'text-gray-400'
+              overdue ? 'text-red-600 font-medium' : dueSoon ? 'text-amber-600' : 'text-gray-400'
             }`}>
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               {formatDateTimeVN(task.deadline)}
-            </span>
-          )}
-
-          {/* Creator */}
-          {task.creator && (
-            <span className="text-[11px] text-gray-400 truncate">
-              {task.creator.full_name}
+              {overdue && <span className="text-[9px]">Trễ</span>}
             </span>
           )}
 
@@ -109,14 +93,14 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
             <div
               key={a.id}
               title={a.full_name}
-              className="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-white border border-white"
+              className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold text-white border-2 border-white"
               style={{ backgroundColor: getAvatarColor(a.full_name) }}
             >
               {getInitials(a.full_name)}
             </div>
           ))}
           {(task.assignees?.length || 0) > 3 && (
-            <div className="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-gray-500 bg-gray-100 border border-white">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold text-gray-500 bg-gray-100 border-2 border-white">
               +{task.assignees!.length - 3}
             </div>
           )}
