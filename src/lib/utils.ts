@@ -81,6 +81,15 @@ export function deleteRequiresWarning(status: string): boolean {
   return ['Đang làm', 'Chờ duyệt KQ'].includes(status);
 }
 
+export function getTaskMonth(deadline: string | null): string {
+  if (!deadline) return '';
+  const d = new Date(deadline);
+  if (isNaN(d.getTime())) return '';
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `Thang ${month}-${year}`;
+}
+
 export function generateCampaignCode(): string {
   const now = new Date();
   const y = now.getFullYear();

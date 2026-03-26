@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { CONTENT_TYPES, PRIORITIES, LOCKED_STATUSES } from '@/lib/constants';
-import { generateTaskId } from '@/lib/utils';
+import { CONTENT_TYPES, PRIORITIES } from '@/lib/constants';
+import { generateTaskId, getTaskMonth } from '@/lib/utils';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
 import type { Campaign, Channel, Profile, Task } from '@/lib/types';
@@ -20,8 +20,13 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isEditing = !!task;
 
-  // Lock fields when status is in certain states
-  const fieldsLocked = isEditing && LOCKED_STATUSES.includes(task.status as typeof LOCKED_STATUSES[number]);
+  // Lock fields: Admin can edit in Bản nháp, Chờ duyệt KH, Đã duyệt, Đang làm
+  // Editor can only edit in Bản nháp (and only gets "Sửa" button there)
+  const adminEditableStatuses = ['Bản nháp', 'Chờ duyệt KH', 'Đã duyệt', 'Đang làm'];
+  const fieldsLocked = isEditing && !(isAdmin
+    ? adminEditableStatuses.includes(task.status)
+    : task.status === 'Bản nháp'
+  );
 
   const [title, setTitle] = useState('');
   const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([]);
@@ -199,6 +204,31 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
           await supabase
             .from('task_channels')
             .insert(selectedChannelIds.map(cid => ({ task_id: task.id, channel_id: cid })));
+        }
+      }
+
+      // Rename Drive folder if title changed and task may have uploads
+      if (!fieldsLocked && title.trim() !== (task.title || '') && task.title) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            await fetch('/api/rename-drive-folder', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({
+                type: 'task',
+                campaignName: task.campaign?.name || 'Không có chiến dịch',
+                taskMonth: getTaskMonth(task.deadline),
+                oldName: task.title,
+                newName: title.trim(),
+              }),
+            });
+          }
+        } catch {
+          // Drive rename is best-effort, don't block task update
         }
       }
 

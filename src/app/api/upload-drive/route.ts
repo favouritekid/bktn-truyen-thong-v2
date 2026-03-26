@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const files = formData.getAll('files') as File[];
     const campaignName = (formData.get('campaignName') as string) || 'Không có chiến dịch';
+    const taskMonth = (formData.get('taskMonth') as string) || '';
     const taskTitle = (formData.get('taskTitle') as string) || 'Untitled Task';
     const uploaderName = (formData.get('uploaderName') as string) || 'Unknown';
     const checklistTitle = (formData.get('checklistTitle') as string) || '';
@@ -92,9 +93,12 @@ export async function POST(req: NextRequest) {
 
     const drive = getDriveClient();
 
-    // Build folder structure: Root > Campaign > Task > Editor > [Checklist item] > version
+    // Build folder structure: Root > Campaign > Month > Task > Editor > [Checklist item] > version
     const campaignFolderId = await getOrCreateFolder(drive, campaignName, rootFolderId);
-    const taskFolderId = await getOrCreateFolder(drive, taskTitle, campaignFolderId);
+    const monthFolderId = taskMonth
+      ? await getOrCreateFolder(drive, taskMonth, campaignFolderId)
+      : campaignFolderId;
+    const taskFolderId = await getOrCreateFolder(drive, taskTitle, monthFolderId);
     const editorFolderId = await getOrCreateFolder(drive, uploaderName, taskFolderId);
     const checklistFolderId = checklistTitle
       ? await getOrCreateFolder(drive, checklistTitle, editorFolderId)

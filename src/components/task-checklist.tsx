@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { LOCKED_STATUSES } from '@/lib/constants';
+import { getTaskMonth } from '@/lib/utils';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
 import type { Profile, Task, TaskChecklist as TaskChecklistItem } from '@/lib/types';
@@ -20,15 +20,28 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
   const [newTitle, setNewTitle] = useState('');
   const [newAssigneeId, setNewAssigneeId] = useState<string>('');
   const [adding, setAdding] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
 
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
-  const isLocked = LOCKED_STATUSES.includes(task.status as typeof LOCKED_STATUSES[number]);
-  const editableStatuses = ['Bản nháp', 'Đã duyệt', 'Đang làm'];
-  // Who can add/delete/edit checklist items
-  const canEditStructure = isAdmin || (!isLocked && isAssignee && editableStatuses.includes(task.status));
-  // Who can change assignee: before admin confirms = task creator; after = admin only
-  const canChangeAssignee = isAdmin || (!isLocked && isAssignee);
+
+  // Permissions per agreed rules:
+  // Admin: add/edit/delete in Bản nháp, Chờ duyệt KH, Đã duyệt, Đang làm
+  // Editor: add/edit/delete only in Bản nháp
+  const adminChecklistStatuses = ['Bản nháp', 'Chờ duyệt KH', 'Đã duyệt', 'Đang làm'];
+  const canEditStructure = isAdmin
+    ? adminChecklistStatuses.includes(task.status)
+    : (isAssignee && task.status === 'Bản nháp');
+
+  // Assignee change: admin in editable statuses, editor in Bản nháp
+  const canChangeAssignee = isAdmin
+    ? adminChecklistStatuses.includes(task.status)
+    : (isAssignee && task.status === 'Bản nháp');
+
+  // Toggle checkbox: separate from add/edit/delete rules
+  // Admin can always toggle; editor can toggle non-assigned items in working statuses
+  const editorToggleStatuses = ['Bản nháp', 'Đã duyệt', 'Đang làm'];
 
   const fetchItems = useCallback(async () => {
     const supabase = createClient();
@@ -111,15 +124,10 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
     setAdding(false);
   }, [newTitle, newAssigneeId, task.id, totalCount, profile.id, show, logActivity, onRefresh]);
 
-  // Can this user toggle this specific item?
-  // Editors cannot manually tick — checklist is auto-completed via submission
-  // Only admin can manually toggle, or items without assignee in draft/approved status
   const canToggleItem = useCallback((item: TaskChecklistItem) => {
     if (isAdmin) return true;
-    // If item has an assignee, it's tied to submissions — no manual tick
     if (item.assignee_user_id) return false;
-    // No assignee: any task assignee can tick in editable statuses
-    return isAssignee && editableStatuses.includes(task.status);
+    return isAssignee && editorToggleStatuses.includes(task.status);
   }, [isAdmin, isAssignee, task.status]);
 
   const handleToggle = useCallback(async (itemId: string, currentChecked: boolean) => {
@@ -139,8 +147,17 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
   }, [items, show, logActivity, onRefresh]);
 
   const handleDelete = useCallback(async (itemId: string) => {
-    const supabase = createClient();
     const item = items.find(i => i.id === itemId);
+
+    // Warning when deleting in Đang làm (uploads may exist)
+    if (task.status === 'Đang làm') {
+      const confirmed = window.confirm(
+        `Xóa "${item?.title}"?\n\nTask đang trong giai đoạn thực hiện — folder trên Google Drive (nếu có) sẽ KHÔNG bị xóa tự động. Bạn cần xóa thủ công trên Drive nếu cần.`
+      );
+      if (!confirmed) return;
+    }
+
+    const supabase = createClient();
     const { error } = await supabase
       .from('task_checklists')
       .delete()
@@ -152,7 +169,68 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
       await logActivity('delete_checklist', `Xóa checklist: ${item?.title}`);
       onRefresh();
     }
-  }, [items, show, logActivity, onRefresh]);
+  }, [items, task.status, show, logActivity, onRefresh]);
+
+  // Inline edit title
+  const startEditTitle = useCallback((item: TaskChecklistItem) => {
+    setEditingItemId(item.id);
+    setEditingTitle(item.title);
+  }, []);
+
+  const cancelEditTitle = useCallback(() => {
+    setEditingItemId(null);
+    setEditingTitle('');
+  }, []);
+
+  const saveEditTitle = useCallback(async (itemId: string) => {
+    const trimmed = editingTitle.trim();
+    const item = items.find(i => i.id === itemId);
+    if (!trimmed || !item || trimmed === item.title) {
+      cancelEditTitle();
+      return;
+    }
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('task_checklists')
+      .update({ title: trimmed, updated_at: new Date().toISOString() })
+      .eq('id', itemId);
+
+    if (error) {
+      show('Lỗi sửa tên: ' + error.message, 'error');
+      return;
+    }
+
+    // Rename Drive folder if task is in Đang làm (uploads may exist)
+    if (task.status === 'Đang làm') {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          await fetch('/api/rename-drive-folder', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              type: 'checklist',
+              campaignName: task.campaign?.name || 'Không có chiến dịch',
+              taskMonth: getTaskMonth(task.deadline),
+              taskTitle: task.title,
+              oldName: item.title,
+              newName: trimmed,
+            }),
+          });
+        }
+      } catch {
+        // Drive rename is best-effort
+      }
+    }
+
+    await logActivity('edit_checklist', `Sửa tên checklist: "${item.title}" → "${trimmed}"`);
+    cancelEditTitle();
+    onRefresh();
+  }, [editingTitle, items, task, show, logActivity, cancelEditTitle, onRefresh]);
 
   const handleAssigneeChange = useCallback(async (itemId: string, userId: string | null) => {
     const supabase = createClient();
@@ -177,6 +255,15 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
       handleAdd();
     }
   }, [handleAdd]);
+
+  const handleEditKeyDown = useCallback((e: React.KeyboardEvent, itemId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveEditTitle(itemId);
+    } else if (e.key === 'Escape') {
+      cancelEditTitle();
+    }
+  }, [saveEditTitle, cancelEditTitle]);
 
   if (loading) return null;
 
@@ -205,6 +292,7 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
       <div className="space-y-1">
         {items.map(item => {
           const toggleable = canToggleItem(item);
+          const isEditingThis = editingItemId === item.id;
           return (
             <div key={item.id} className="flex items-center gap-2 group rounded-md px-2 py-1.5 hover:bg-gray-50">
               <input
@@ -214,16 +302,32 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
                 disabled={!toggleable}
                 className="accent-blue-600 shrink-0"
               />
-              <span className={`text-sm flex-1 ${item.is_checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                {item.title}
-                {item.assignee_user_id && !isAdmin && (
-                  <span className="text-[9px] text-gray-400 ml-1" title="Tự hoàn thành khi nộp kết quả">
-                    (qua báo cáo)
-                  </span>
-                )}
-              </span>
+              {isEditingThis ? (
+                <input
+                  type="text"
+                  value={editingTitle}
+                  onChange={e => setEditingTitle(e.target.value)}
+                  onKeyDown={e => handleEditKeyDown(e, item.id)}
+                  onBlur={() => saveEditTitle(item.id)}
+                  autoFocus
+                  className="flex-1 text-sm border border-blue-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              ) : (
+                <span
+                  className={`text-sm flex-1 ${item.is_checked ? 'line-through text-gray-400' : 'text-gray-700'} ${canEditStructure ? 'cursor-pointer hover:text-blue-600' : ''}`}
+                  onDoubleClick={() => canEditStructure && startEditTitle(item)}
+                  title={canEditStructure ? 'Nhấp đúp để sửa' : undefined}
+                >
+                  {item.title}
+                  {item.assignee_user_id && !isAdmin && (
+                    <span className="text-[9px] text-gray-400 ml-1" title="Tự hoàn thành khi nộp kết quả">
+                      (qua báo cáo)
+                    </span>
+                  )}
+                </span>
+              )}
               {/* Assignee badge or select */}
-              {canChangeAssignee ? (
+              {!isEditingThis && canChangeAssignee ? (
                 <select
                   value={item.assignee_user_id || ''}
                   onChange={e => handleAssigneeChange(item.id, e.target.value || null)}
@@ -235,12 +339,12 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
                     <option key={a.id} value={a.id}>{a.full_name}</option>
                   ))}
                 </select>
-              ) : item.assignee ? (
+              ) : !isEditingThis && item.assignee ? (
                 <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded max-w-[90px] truncate" title={item.assignee.full_name}>
                   {item.assignee.full_name}
                 </span>
               ) : null}
-              {canEditStructure && (
+              {!isEditingThis && canEditStructure && (
                 <button
                   onClick={() => handleDelete(item.id)}
                   className="text-red-400 hover:text-red-600 text-sm opacity-0 group-hover:opacity-100 transition-opacity shrink-0"

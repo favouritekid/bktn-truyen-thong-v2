@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
+import { getTaskMonth } from '@/lib/utils';
 import type { LinkLabel, Task, TaskChecklist, TaskMemberSubmission, TaskMemberSubmissionLink } from '@/lib/types';
 
 interface TaskSubmissionsProps {
@@ -191,6 +192,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       const formData = new FormData();
       Array.from(files).forEach(f => formData.append('files', f));
       formData.append('campaignName', task.campaign?.name || 'Không có chiến dịch');
+      formData.append('taskMonth', getTaskMonth(task.deadline));
       formData.append('taskTitle', task.title);
       formData.append('uploaderName', profile.full_name);
       formData.append('checklistTitle', checklistEntries[idx]?.title || '');

@@ -304,7 +304,18 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     }
 
     if (isAdmin) {
-      if (task.status === 'Chờ duyệt KH') {
+      // Admin can edit in: Bản nháp, Chờ duyệt KH, Đã duyệt, Đang làm
+      if (['Bản nháp', 'Chờ duyệt KH', 'Đã duyệt', 'Đang làm'].includes(task.status)) {
+        buttons.push(
+          <button key="edit" onClick={() => onEdit(task)} className={btnSecondary}>Sửa</button>
+        );
+      }
+
+      if (task.status === 'Bản nháp') {
+        buttons.push(
+          <button key="send" onClick={handleSendApproval} disabled={updating} className={btnPrimary}>Gửi duyệt KH</button>
+        );
+      } else if (task.status === 'Chờ duyệt KH') {
         buttons.push(
           <button key="reject" onClick={handleRejectContent} disabled={updating} className={btnDanger}>Từ chối</button>,
           <button key="approve" onClick={handleApproveContent} disabled={updating} className={btnPrimary}>Duyệt KH</button>
@@ -319,13 +330,6 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
       if (['Đã duyệt', 'Đang làm', 'Đã đăng'].includes(task.status)) {
         buttons.push(
           <button key="toDraft" onClick={handleBackToDraft} disabled={updating} className={btnSecondary}>Về nháp</button>
-        );
-      }
-
-      if (task.status === 'Bản nháp') {
-        buttons.push(
-          <button key="edit" onClick={() => onEdit(task)} className={btnSecondary}>Sửa</button>,
-          <button key="send" onClick={handleSendApproval} disabled={updating} className={btnPrimary}>Gửi duyệt KH</button>
         );
       }
     }
