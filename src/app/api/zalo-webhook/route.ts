@@ -3,19 +3,34 @@ import { sendMessage } from '@/lib/zalo-bot';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
+  const admin = createAdminClient();
+
   try {
     // Verify secret token
     const secretToken = req.headers.get('x-bot-api-secret-token');
     if (secretToken !== process.env.ZALO_BOT_WEBHOOK_SECRET) {
+      await admin.from('notification_logs').insert({
+        chat_id: '_debug',
+        notification_type: 'webhook_auth_failed',
+        message: `Expected: ${process.env.ZALO_BOT_WEBHOOK_SECRET?.slice(0, 8)}... Got: ${secretToken?.slice(0, 8)}...`,
+        status: 'debug',
+      });
       return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
     }
 
     const body = await req.json();
-    if (!body.ok || !body.result) {
-      return NextResponse.json({ message: 'Invalid payload' }, { status: 400 });
-    }
 
-    const { event_name, message } = body.result;
+    // Log raw payload for debugging
+    await admin.from('notification_logs').insert({
+      chat_id: '_debug',
+      notification_type: 'webhook_raw',
+      message: JSON.stringify(body).slice(0, 2000),
+      status: 'debug',
+    });
+
+    // Handle both formats: {ok, result: {event_name, message}} or {event_name, message}
+    const result = body.result ?? body;
+    const { event_name, message } = result;
 
     // Only handle text messages
     if (event_name !== 'message.text.received' || !message) {
@@ -29,8 +44,6 @@ export async function POST(req: NextRequest) {
     if (!chatId) {
       return NextResponse.json({ message: 'OK' });
     }
-
-    const admin = createAdminClient();
 
     // Check if this chat_id is already linked
     const { data: existing } = await admin
@@ -47,7 +60,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user sent an email to link
-    // Format: user sends their email address
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (emailPattern.test(text)) {
@@ -76,7 +88,6 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (existingLink) {
-        // Update to new chat_id
         await admin
           .from('zalo_bot_users')
           .update({ chat_id: chatId, display_name: displayName, linked_at: new Date().toISOString(), is_active: true })
@@ -111,7 +122,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ message: 'OK' });
   } catch (err) {
-    console.error('POST /api/zalo-webhook error:', err);
+    // Log error to database
+    await admin.from('notification_logs').insert({
+      chat_id: '_debug',
+      notification_type: 'webhook_error',
+      message: String(err),
+      status: 'error',
+    });
     return NextResponse.json({ message: 'Error' }, { status: 500 });
   }
 }
