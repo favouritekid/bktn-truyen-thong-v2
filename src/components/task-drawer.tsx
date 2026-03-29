@@ -122,6 +122,18 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     setUpdating(false);
   }, [task, show, logActivity, onRefresh, onClose]);
 
+  const sendZaloNotification = useCallback(async (taskId: string, type: string, rejectReason?: string) => {
+    try {
+      await fetch('/api/notifications/zalo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, type, rejectReason }),
+      });
+    } catch {
+      // Notification failure should not block the main flow
+    }
+  }, []);
+
   const handleSendApproval = useCallback(async () => {
     if (!task) return;
     if (!task.title || !task.channels?.length || !task.deadline || !task.assignees?.length) {
@@ -133,7 +145,8 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
   const handleApproveContent = useCallback(async () => {
     await updateStatus('Đã duyệt');
-  }, [updateStatus]);
+    if (task) sendZaloNotification(task.id, 'content_approved');
+  }, [updateStatus, task, sendZaloNotification]);
 
   const handleRejectContent = useCallback(async () => {
     const reason = window.prompt('Nhập lý do từ chối:');
@@ -142,7 +155,8 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     const noteAppend = `\n[${timestamp}] Từ chối KH: ${reason}`;
     const currentNote = task?.admin_note || '';
     await updateStatus('Bản nháp', { admin_note: currentNote + noteAppend });
-  }, [task, updateStatus]);
+    if (task) sendZaloNotification(task.id, 'content_rejected', reason);
+  }, [task, updateStatus, sendZaloNotification]);
 
   const handleStartWork = useCallback(async () => {
     await updateStatus('Đang làm');
@@ -155,7 +169,8 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
   const handleApproveResult = useCallback(async () => {
     await updateStatus('Đã đăng');
-  }, [updateStatus]);
+    if (task) sendZaloNotification(task.id, 'result_approved');
+  }, [updateStatus, task, sendZaloNotification]);
 
   const handleRejectResult = useCallback(async () => {
     const reason = window.prompt('Nhập lý do trả lại:');
@@ -164,7 +179,8 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     const noteAppend = `\n[${timestamp}] Trả lại KQ: ${reason}`;
     const currentNote = task?.admin_note || '';
     await updateStatus('Đang làm', { admin_note: currentNote + noteAppend });
-  }, [task, updateStatus]);
+    if (task) sendZaloNotification(task.id, 'result_rejected', reason);
+  }, [task, updateStatus, sendZaloNotification]);
 
   const handleBackToDraft = useCallback(async () => {
     if (!task) return;

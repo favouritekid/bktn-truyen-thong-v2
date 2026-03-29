@@ -124,11 +124,121 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
   );
 }
 
+function ZaloLinkModal({ open, onClose, profileId }: { open: boolean; onClose: () => void; profileId: string }) {
+  const { show } = useToast();
+  const [status, setStatus] = useState<'loading' | 'linked' | 'not_linked'>('loading');
+  const [displayName, setDisplayName] = useState('');
+
+  const checkLink = useCallback(async () => {
+    setStatus('loading');
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('zalo_bot_users')
+      .select('display_name, is_active')
+      .eq('user_id', profileId)
+      .eq('is_active', true)
+      .single();
+
+    if (data) {
+      setDisplayName(data.display_name || 'Zalo User');
+      setStatus('linked');
+    } else {
+      setStatus('not_linked');
+    }
+  }, [profileId]);
+
+  useEffect(() => {
+    if (open) checkLink();
+  }, [open, checkLink]);
+
+  const handleUnlink = useCallback(async () => {
+    const supabase = createClient();
+    await supabase
+      .from('zalo_bot_users')
+      .update({ is_active: false })
+      .eq('user_id', profileId);
+    show('Da huy lien ket Zalo', 'success');
+    setStatus('not_linked');
+  }, [profileId, show]);
+
+  if (!open) return null;
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 z-[80]" onClick={onClose} />
+      <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg w-full max-w-sm border border-gray-200">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">Thong bao Zalo</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+          </div>
+
+          <div className="px-5 py-4">
+            {status === 'loading' && (
+              <p className="text-xs text-gray-500">Dang kiem tra...</p>
+            )}
+
+            {status === 'linked' && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <p className="text-xs font-medium text-green-800">Da lien ket</p>
+                    <p className="text-[11px] text-green-600">{displayName}</p>
+                  </div>
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  Ban se nhan thong bao qua Zalo khi ke hoach duoc duyet hoac tu choi.
+                </p>
+                <button
+                  onClick={handleUnlink}
+                  className="w-full text-xs text-red-600 hover:bg-red-50 py-2 rounded-md border border-red-200 transition-colors"
+                >
+                  Huy lien ket
+                </button>
+              </div>
+            )}
+
+            {status === 'not_linked' && (
+              <div className="space-y-3">
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-xs font-medium text-gray-800 mb-2">Huong dan lien ket:</p>
+                  <ol className="text-[11px] text-gray-600 space-y-1.5 list-decimal list-inside">
+                    <li>Mo Zalo, tim <span className="font-medium">Bot BKTN Thong Bao</span></li>
+                    <li>Gui tin nhan la <span className="font-medium">email dang nhap</span> cua ban</li>
+                    <li>Bot se xac nhan lien ket thanh cong</li>
+                  </ol>
+                </div>
+                <p className="text-[11px] text-gray-400">
+                  Sau khi lien ket, ban se tu dong nhan thong bao khi co thay doi trang thai task.
+                </p>
+                <button
+                  onClick={checkLink}
+                  className="w-full text-xs text-gray-700 hover:bg-gray-100 py-2 rounded-md border border-gray-200 transition-colors"
+                >
+                  Kiem tra lai
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+            <button onClick={onClose} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Dong</button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function AppShell({ profile, children }: { profile: Profile; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showZaloLink, setShowZaloLink] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
   // Restore sidebar state from localStorage
@@ -262,6 +372,12 @@ export default function AppShell({ profile, children }: { profile: Profile; chil
                   </div>
                   <div className="flex gap-1 px-1">
                     <button
+                      onClick={() => setShowZaloLink(true)}
+                      className="flex-1 text-[11px] text-gray-500 hover:text-blue-600 hover:bg-blue-50 py-1 rounded transition-colors"
+                    >
+                      Zalo
+                    </button>
+                    <button
                       onClick={() => setShowChangePassword(true)}
                       className="flex-1 text-[11px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 py-1 rounded transition-colors"
                     >
@@ -299,6 +415,7 @@ export default function AppShell({ profile, children }: { profile: Profile; chil
         </div>
 
         <ChangePasswordModal open={showChangePassword} onClose={() => setShowChangePassword(false)} />
+        <ZaloLinkModal open={showZaloLink} onClose={() => setShowZaloLink(false)} profileId={profile.id} />
       </ToastProvider>
     </ProfileProvider>
   );
