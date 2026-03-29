@@ -37,8 +37,13 @@ export async function setWebhook(url: string, secretToken: string): Promise<Zalo
 }
 
 // Format tin nhắn thông báo duyệt/từ chối
+export type NotificationType =
+  | 'content_approved' | 'content_rejected'
+  | 'result_approved' | 'result_rejected'
+  | 'pending_content_approval' | 'pending_result_approval';
+
 export function formatNotificationMessage(params: {
-  type: 'content_approved' | 'content_rejected' | 'result_approved' | 'result_rejected';
+  type: NotificationType;
   taskId: string;
   taskTitle: string;
   campaignName?: string;
@@ -57,6 +62,8 @@ export function formatNotificationMessage(params: {
     content_rejected: 'KE HOACH BI TU CHOI',
     result_approved: 'KET QUA DA DUYET - DA DANG',
     result_rejected: 'KET QUA BI TRA LAI',
+    pending_content_approval: 'CO KE HOACH CAN DUYET',
+    pending_result_approval: 'CO KET QUA CAN DUYET',
   };
 
   const footers: Record<string, string> = {
@@ -64,6 +71,8 @@ export function formatNotificationMessage(params: {
     content_rejected: 'Vui long chinh sua va gui duyet lai.',
     result_approved: 'Task da hoan thanh!',
     result_rejected: 'Vui long chinh sua ket qua va nop lai.',
+    pending_content_approval: 'Vui long vao he thong de duyet.',
+    pending_result_approval: 'Vui long vao he thong de duyet ket qua.',
   };
 
   let msg = `[${headers[type]}]\n\n`;
@@ -72,7 +81,7 @@ export function formatNotificationMessage(params: {
   if (campaignName) msg += `Chien dich: ${campaignName}\n`;
   msg += `Kenh: ${channelStr}\n`;
   msg += `Deadline: ${deadlineStr}\n`;
-  msg += `Boi: ${actionBy}\n`;
+  msg += `Gui boi: ${actionBy}\n`;
 
   if (rejectReason) {
     msg += `\nLy do: ${rejectReason}\n`;

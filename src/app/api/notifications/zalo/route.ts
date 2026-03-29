@@ -1,6 +1,19 @@
 import { createAdminClient, verifyRole, isVerifyError, verifyErrorResponse } from '@/lib/supabase/admin';
 import { sendMessage, formatNotificationMessage } from '@/lib/zalo-bot';
+import type { NotificationType } from '@/lib/zalo-bot';
 import { NextRequest, NextResponse } from 'next/server';
+
+const VALID_TYPES: NotificationType[] = [
+  'content_approved', 'content_rejected',
+  'result_approved', 'result_rejected',
+  'pending_content_approval', 'pending_result_approval',
+];
+
+// Types that notify admins instead of assignees
+const ADMIN_NOTIFY_TYPES: NotificationType[] = [
+  'pending_content_approval',
+  'pending_result_approval',
+];
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,14 +26,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing taskId or type' }, { status: 400 });
     }
 
-    const validTypes = ['content_approved', 'content_rejected', 'result_approved', 'result_rejected'];
-    if (!validTypes.includes(type)) {
+    if (!VALID_TYPES.includes(type)) {
       return NextResponse.json({ error: 'Invalid notification type' }, { status: 400 });
     }
 
     const admin = createAdminClient();
 
-    // Fetch task with related data
+    // Fetch task
     const { data: task } = await admin
       .from('tasks')
       .select('id, title, status, deadline, campaign_id')
@@ -57,21 +69,35 @@ export async function POST(req: NextRequest) {
       channels = channelData?.map(c => c.name) ?? [];
     }
 
-    // Fetch assignees
-    const { data: assignees } = await admin
-      .from('task_assignees')
-      .select('user_id')
-      .eq('task_id', taskId);
+    // Determine recipients: admins or assignees
+    let recipientUserIds: string[];
 
-    if (!assignees?.length) {
-      return NextResponse.json({ ok: true, sent: 0, reason: 'No assignees' });
+    if (ADMIN_NOTIFY_TYPES.includes(type)) {
+      // Notify all admin + super_admin
+      const { data: admins } = await admin
+        .from('profiles')
+        .select('id')
+        .in('role', ['admin', 'super_admin'])
+        .eq('is_active', true);
+      recipientUserIds = admins?.map(a => a.id) ?? [];
+    } else {
+      // Notify assignees
+      const { data: assignees } = await admin
+        .from('task_assignees')
+        .select('user_id')
+        .eq('task_id', taskId);
+      recipientUserIds = assignees?.map(a => a.user_id) ?? [];
     }
 
-    // Fetch Zalo chat_ids for assignees
+    if (!recipientUserIds.length) {
+      return NextResponse.json({ ok: true, sent: 0, reason: 'No recipients' });
+    }
+
+    // Fetch Zalo chat_ids for recipients
     const { data: zaloUsers } = await admin
       .from('zalo_bot_users')
       .select('user_id, chat_id')
-      .in('user_id', assignees.map(a => a.user_id))
+      .in('user_id', recipientUserIds)
       .eq('is_active', true);
 
     if (!zaloUsers?.length) {
@@ -92,11 +118,11 @@ export async function POST(req: NextRequest) {
       campaignName,
       channels,
       deadline: task.deadline,
-      actionBy: actionProfile?.full_name ?? 'Admin',
+      actionBy: actionProfile?.full_name ?? 'N/A',
       rejectReason,
     });
 
-    // Send to all linked Zalo accounts
+    // Send to all recipients
     let sent = 0;
     let failed = 0;
 

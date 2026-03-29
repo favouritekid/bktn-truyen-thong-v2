@@ -141,7 +141,8 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
       return;
     }
     await updateStatus('Chờ duyệt KH');
-  }, [task, updateStatus, show]);
+    sendZaloNotification(task.id, 'pending_content_approval');
+  }, [task, updateStatus, show, sendZaloNotification]);
 
   const handleApproveContent = useCallback(async () => {
     await updateStatus('Đã duyệt');
@@ -165,7 +166,8 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
   const handleSendResultApproval = useCallback(async () => {
     if (!task) return;
     await updateStatus('Chờ duyệt KQ');
-  }, [task, updateStatus]);
+    sendZaloNotification(task.id, 'pending_result_approval');
+  }, [task, updateStatus, sendZaloNotification]);
 
   const handleApproveResult = useCallback(async () => {
     await updateStatus('Đã đăng');
