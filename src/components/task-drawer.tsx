@@ -91,7 +91,15 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     });
   }, [profile.id]);
 
-  const updateStatus = useCallback(async (newStatus: string, extraUpdates?: Record<string, unknown>) => {
+  const sendZaloNotification = useCallback((taskId: string, type: string, rejectReason?: string) => {
+    fetch('/api/notifications/zalo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId, type, rejectReason }),
+    }).catch(() => {});
+  }, []);
+
+  const updateStatus = useCallback(async (newStatus: string, extraUpdates?: Record<string, unknown>, notification?: { type: string; rejectReason?: string }) => {
     if (!task) return;
     setUpdating(true);
     const supabase = createClient();
@@ -116,23 +124,14 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     } else {
       show(`Chuyển trạng thái: ${task.status} → ${newStatus}`, 'success');
       await logActivity('status_change', `${task.status} → ${newStatus}`, task.id);
+      if (notification) {
+        sendZaloNotification(task.id, notification.type, notification.rejectReason);
+      }
       onRefresh();
       onClose();
     }
     setUpdating(false);
-  }, [task, show, logActivity, onRefresh, onClose]);
-
-  const sendZaloNotification = useCallback(async (taskId: string, type: string, rejectReason?: string) => {
-    try {
-      await fetch('/api/notifications/zalo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId, type, rejectReason }),
-      });
-    } catch {
-      // Notification failure should not block the main flow
-    }
-  }, []);
+  }, [task, show, logActivity, onRefresh, onClose, sendZaloNotification]);
 
   const handleSendApproval = useCallback(async () => {
     if (!task) return;
@@ -140,14 +139,12 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
       show('Vui lòng điền đầy đủ thông tin (tiêu đề, kênh, deadline, người phụ trách) trước khi gửi duyệt.', 'error');
       return;
     }
-    await updateStatus('Chờ duyệt KH');
-    sendZaloNotification(task.id, 'pending_content_approval');
-  }, [task, updateStatus, show, sendZaloNotification]);
+    await updateStatus('Chờ duyệt KH', undefined, { type: 'pending_content_approval' });
+  }, [task, updateStatus, show]);
 
   const handleApproveContent = useCallback(async () => {
-    await updateStatus('Đã duyệt');
-    if (task) sendZaloNotification(task.id, 'content_approved');
-  }, [updateStatus, task, sendZaloNotification]);
+    await updateStatus('Đã duyệt', undefined, { type: 'content_approved' });
+  }, [updateStatus]);
 
   const handleRejectContent = useCallback(async () => {
     const reason = window.prompt('Nhập lý do từ chối:');
@@ -155,9 +152,8 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     const timestamp = formatDateVN(new Date());
     const noteAppend = `\n[${timestamp}] Từ chối KH: ${reason}`;
     const currentNote = task?.admin_note || '';
-    await updateStatus('Bản nháp', { admin_note: currentNote + noteAppend });
-    if (task) sendZaloNotification(task.id, 'content_rejected', reason);
-  }, [task, updateStatus, sendZaloNotification]);
+    await updateStatus('Bản nháp', { admin_note: currentNote + noteAppend }, { type: 'content_rejected', rejectReason: reason });
+  }, [task, updateStatus]);
 
   const handleStartWork = useCallback(async () => {
     await updateStatus('Đang làm');
@@ -165,14 +161,12 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
   const handleSendResultApproval = useCallback(async () => {
     if (!task) return;
-    await updateStatus('Chờ duyệt KQ');
-    sendZaloNotification(task.id, 'pending_result_approval');
-  }, [task, updateStatus, sendZaloNotification]);
+    await updateStatus('Chờ duyệt KQ', undefined, { type: 'pending_result_approval' });
+  }, [task, updateStatus]);
 
   const handleApproveResult = useCallback(async () => {
-    await updateStatus('Đã đăng');
-    if (task) sendZaloNotification(task.id, 'result_approved');
-  }, [updateStatus, task, sendZaloNotification]);
+    await updateStatus('Đã đăng', undefined, { type: 'result_approved' });
+  }, [updateStatus]);
 
   const handleRejectResult = useCallback(async () => {
     const reason = window.prompt('Nhập lý do trả lại:');
@@ -180,9 +174,8 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     const timestamp = formatDateVN(new Date());
     const noteAppend = `\n[${timestamp}] Trả lại KQ: ${reason}`;
     const currentNote = task?.admin_note || '';
-    await updateStatus('Đang làm', { admin_note: currentNote + noteAppend });
-    if (task) sendZaloNotification(task.id, 'result_rejected', reason);
-  }, [task, updateStatus, sendZaloNotification]);
+    await updateStatus('Đang làm', { admin_note: currentNote + noteAppend }, { type: 'result_rejected', rejectReason: reason });
+  }, [task, updateStatus]);
 
   const handleBackToDraft = useCallback(async () => {
     if (!task) return;
