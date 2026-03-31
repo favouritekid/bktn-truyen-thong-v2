@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       .eq('id', auth.user.id)
       .single();
 
-    const message = formatNotificationMessage({
+    const message = await formatNotificationMessage({
       type,
       taskId: task.id,
       taskTitle: task.title,

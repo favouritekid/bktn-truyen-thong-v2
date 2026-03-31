@@ -42,7 +42,18 @@ export type NotificationType =
   | 'result_approved' | 'result_rejected'
   | 'pending_content_approval' | 'pending_result_approval';
 
-export function formatNotificationMessage(params: {
+async function shortenUrl(url: string): Promise<string> {
+  try {
+    const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`);
+    if (res.ok) {
+      const short = await res.text();
+      if (short.startsWith('http')) return short;
+    }
+  } catch { /* fallback to original */ }
+  return url;
+}
+
+export async function formatNotificationMessage(params: {
   type: NotificationType;
   taskId: string;
   taskTitle: string;
@@ -51,7 +62,7 @@ export function formatNotificationMessage(params: {
   deadline?: string;
   actionBy: string;
   rejectReason?: string;
-}): string {
+}): Promise<string> {
   const { type, taskId, taskTitle, campaignName, channels, deadline, actionBy, rejectReason } = params;
 
   const channelStr = channels?.length ? channels.join(', ') : 'N/A';
@@ -102,7 +113,8 @@ export function formatNotificationMessage(params: {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (appUrl) {
-    msg += `\n${f.icon} ${f.text}:\n${appUrl}/t/${taskId}`;
+    const shortLink = await shortenUrl(`${appUrl}/t/${taskId}`);
+    msg += `\n${f.icon} ${f.text}:\n${shortLink}`;
   } else {
     msg += `\n${f.icon} ${f.text}.`;
   }
