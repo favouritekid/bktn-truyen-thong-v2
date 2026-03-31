@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { STATUSES, STATUS_COLORS } from '@/lib/constants';
 import { useChannels } from '@/hooks/use-channels';
@@ -14,6 +15,8 @@ import type { Profile, Task } from '@/lib/types';
 
 export default function KanbanPage() {
   const profile = useProfile();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { channels: dbChannels } = useChannels();
   const [channelFilter, setChannelFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
@@ -114,6 +117,20 @@ export default function KanbanPage() {
   const closeForm = useCallback(() => {
     setFormTask(undefined);
   }, []);
+
+  // Auto-open task from URL query param (e.g., /kanban?task=T-20260331-2797)
+  const taskParam = searchParams.get('task');
+  const taskParamHandled = useRef(false);
+  useEffect(() => {
+    if (taskParam && !loading && tasks.length > 0 && !taskParamHandled.current) {
+      const task = tasks.find(t => t.id === taskParam);
+      if (task) {
+        openDrawer(task);
+        taskParamHandled.current = true;
+        router.replace('/kanban', { scroll: false });
+      }
+    }
+  }, [taskParam, loading, tasks, openDrawer, router]);
 
   // Column background tints (very subtle, Trello-style)
   const columnBg: Record<string, string> = {

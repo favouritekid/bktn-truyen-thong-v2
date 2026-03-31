@@ -57,42 +57,54 @@ export function formatNotificationMessage(params: {
   const channelStr = channels?.length ? channels.join(', ') : 'N/A';
   const deadlineStr = deadline ? new Date(deadline).toLocaleDateString('vi-VN') : 'N/A';
 
-  const headers: Record<string, string> = {
-    content_approved: 'KE HOACH DA DUYET',
-    content_rejected: 'KE HOACH BI TU CHOI',
-    result_approved: 'KET QUA DA DUYET - DA DANG',
-    result_rejected: 'KET QUA BI TRA LAI',
-    pending_content_approval: 'CO KE HOACH CAN DUYET',
-    pending_result_approval: 'CO KET QUA CAN DUYET',
+  const LINE = '━━━━━━━━━━━━━━━━';
+
+  const headers: Record<string, { icon: string; title: string }> = {
+    content_approved:        { icon: '✅', title: 'KẾ HOẠCH ĐÃ DUYỆT' },
+    content_rejected:        { icon: '❌', title: 'KẾ HOẠCH BỊ TỪ CHỐI' },
+    result_approved:         { icon: '🎉', title: 'KẾT QUẢ ĐÃ DUYỆT - ĐÃ ĐĂNG' },
+    result_rejected:         { icon: '🔄', title: 'KẾT QUẢ BỊ TRẢ LẠI' },
+    pending_content_approval:{ icon: '📋', title: 'CÓ KẾ HOẠCH CẦN DUYỆT' },
+    pending_result_approval: { icon: '📊', title: 'CÓ KẾT QUẢ CẦN DUYỆT' },
   };
 
-  const footers: Record<string, string> = {
-    content_approved: 'Hay bat dau thuc hien!',
-    content_rejected: 'Vui long chinh sua va gui duyet lai.',
-    result_approved: 'Task da hoan thanh!',
-    result_rejected: 'Vui long chinh sua ket qua va nop lai.',
-    pending_content_approval: 'Vui long vao he thong de duyet.',
-    pending_result_approval: 'Vui long vao he thong de duyet ket qua.',
+  const actionLabels: Record<string, string> = {
+    content_approved: 'Duyệt bởi',
+    content_rejected: 'Từ chối bởi',
+    result_approved: 'Duyệt bởi',
+    result_rejected: 'Trả lại bởi',
+    pending_content_approval: 'Gửi bởi',
+    pending_result_approval: 'Gửi bởi',
   };
 
-  let msg = `[${headers[type]}]\n\n`;
-  msg += `Ma: ${taskId}\n`;
-  msg += `Tieu de: ${taskTitle}\n`;
-  if (campaignName) msg += `Chien dich: ${campaignName}\n`;
-  msg += `Kenh: ${channelStr}\n`;
+  const footers: Record<string, { icon: string; text: string }> = {
+    content_approved:        { icon: '🚀', text: 'Hãy bắt đầu thực hiện' },
+    content_rejected:        { icon: '⚠', text: 'Vui lòng chỉnh sửa và gửi duyệt lại' },
+    result_approved:         { icon: '🏆', text: 'Task đã hoàn thành!' },
+    result_rejected:         { icon: '⚠', text: 'Vui lòng chỉnh sửa kết quả và nộp lại' },
+    pending_content_approval:{ icon: '👉', text: 'Vui lòng vào hệ thống để duyệt' },
+    pending_result_approval: { icon: '👉', text: 'Vui lòng vào hệ thống để duyệt kết quả' },
+  };
+
+  const h = headers[type];
+  const f = footers[type];
+
+  let msg = `${LINE}\n${h.icon} ${h.title}\n${LINE}\n`;
+  msg += `Tiêu đề: ${taskTitle}\n`;
+  if (campaignName) msg += `Chiến dịch: ${campaignName}\n`;
+  msg += `Kênh: ${channelStr}\n`;
   msg += `Deadline: ${deadlineStr}\n`;
-  msg += `Gui boi: ${actionBy}\n`;
+  msg += `${actionLabels[type]}: ${actionBy}\n`;
 
   if (rejectReason) {
-    msg += `\nLy do: ${rejectReason}\n`;
+    msg += `\nLý do: ${rejectReason}\n`;
   }
 
-  msg += `\n${footers[type]}`;
-
-  // Thêm link xem chi tiết task
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (appUrl) {
-    msg += `\n\nXem chi tiet:\n${appUrl}/tasks/${taskId}`;
+    msg += `\n${f.icon} ${f.text}:\n${appUrl}/t/${taskId}`;
+  } else {
+    msg += `\n${f.icon} ${f.text}.`;
   }
 
   return msg;
