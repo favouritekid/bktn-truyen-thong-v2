@@ -88,5 +88,12 @@ export function formatNotificationMessage(params: {
   }
 
   msg += `\n${footers[type]}`;
+
+  // Thêm link xem chi tiết task
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (appUrl) {
+    msg += `\n\nXem chi tiet: ${appUrl}/tasks/${taskId}`;
+  }
+
   return msg;
 }
