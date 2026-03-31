@@ -43,18 +43,22 @@ export type NotificationType =
   | 'pending_content_approval' | 'pending_result_approval';
 
 async function shortenUrl(url: string): Promise<string> {
-  try {
-    const res = await fetch(
-      `https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`,
-      { signal: AbortSignal.timeout(5000) },
-    );
-    if (res.ok) {
-      const short = (await res.text()).trim();
-      if (short.startsWith('http')) return short;
+  const services = [
+    `https://is.gd/create.php?format=simple&url=${encodeURIComponent(url)}`,
+    `https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`,
+  ];
+  for (const api of services) {
+    try {
+      const res = await fetch(api, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const short = (await res.text()).trim();
+        if (short.startsWith('http')) return short;
+      }
+    } catch (err) {
+      console.error('shortenUrl failed for', api, err);
     }
-  } catch (err) {
-    console.error('shortenUrl error:', err);
   }
+  console.warn('All URL shorteners failed, using original:', url);
   return url;
 }
 
