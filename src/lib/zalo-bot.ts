@@ -92,7 +92,7 @@ export function formatNotificationMessage(params: {
   // Thêm link xem chi tiết task
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (appUrl) {
-    msg += `\n\nXem chi tiet: ${appUrl}/tasks/${taskId}`;
+    msg += `\n\nXem chi tiet:\n${appUrl}/tasks/${taskId}`;
   }
 
   return msg;
