@@ -10,7 +10,19 @@ import TaskChecklist from './task-checklist';
 import TaskLinks from './task-links';
 import TaskComments from './task-comments';
 import TaskSubmissions from './task-submissions';
+import ConfirmDialog from './ui/confirm-dialog';
 import type { Task } from '@/lib/types';
+
+interface DialogState {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  variant: 'default' | 'danger';
+  promptMode: boolean;
+  promptPlaceholder: string;
+  onConfirm: (value?: string) => void;
+}
 
 interface TaskDrawerProps {
   task: Task | null;
@@ -26,6 +38,9 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [allChecklistDone, setAllChecklistDone] = useState(false);
+  const emptyDialog: DialogState = { open: false, title: '', message: '', confirmLabel: 'Xác nhận', variant: 'default', promptMode: false, promptPlaceholder: '', onConfirm: () => {} };
+  const [dialog, setDialog] = useState<DialogState>(emptyDialog);
+  const closeDialog = useCallback(() => setDialog(prev => ({ ...prev, open: false })), []);
 
   // Close drawer on Escape key
   useEffect(() => {
@@ -166,14 +181,20 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     await updateStatus('Đã duyệt', undefined, { type: 'content_approved' });
   }, [updateStatus]);
 
-  const handleRejectContent = useCallback(async () => {
-    const reason = window.prompt('Nhập lý do từ chối:');
-    if (!reason) return;
-    const timestamp = formatDateVN(new Date());
-    const noteAppend = `\n[${timestamp}] Từ chối KH: ${reason}`;
-    const currentNote = task?.admin_note || '';
-    await updateStatus('Bản nháp', { admin_note: currentNote + noteAppend }, { type: 'content_rejected', rejectReason: reason });
-  }, [task, updateStatus]);
+  const handleRejectContent = useCallback(() => {
+    setDialog({
+      open: true, title: 'Từ chối nội dung', message: 'Nhập lý do từ chối để gửi lại cho editor.',
+      confirmLabel: 'Từ chối', variant: 'danger', promptMode: true, promptPlaceholder: 'Lý do từ chối...',
+      onConfirm: async (reason) => {
+        closeDialog();
+        if (!reason) return;
+        const timestamp = formatDateVN(new Date());
+        const noteAppend = `\n[${timestamp}] Từ chối KH: ${reason}`;
+        const currentNote = task?.admin_note || '';
+        await updateStatus('Bản nháp', { admin_note: currentNote + noteAppend }, { type: 'content_rejected', rejectReason: reason });
+      },
+    });
+  }, [task, updateStatus, closeDialog]);
 
   const handleStartWork = useCallback(async () => {
     await updateStatus('Đang làm');
@@ -188,69 +209,88 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
     await updateStatus('Đã đăng', undefined, { type: 'result_approved' });
   }, [updateStatus]);
 
-  const handleRejectResult = useCallback(async () => {
-    const reason = window.prompt('Nhập lý do trả lại:');
-    if (!reason) return;
-    const timestamp = formatDateVN(new Date());
-    const noteAppend = `\n[${timestamp}] Trả lại KQ: ${reason}`;
-    const currentNote = task?.admin_note || '';
-    await updateStatus('Đang làm', { admin_note: currentNote + noteAppend }, { type: 'result_rejected', rejectReason: reason });
-  }, [task, updateStatus]);
+  const handleRejectResult = useCallback(() => {
+    setDialog({
+      open: true, title: 'Trả lại kết quả', message: 'Nhập lý do trả lại để editor chỉnh sửa.',
+      confirmLabel: 'Trả lại', variant: 'danger', promptMode: true, promptPlaceholder: 'Lý do trả lại...',
+      onConfirm: async (reason) => {
+        closeDialog();
+        if (!reason) return;
+        const timestamp = formatDateVN(new Date());
+        const noteAppend = `\n[${timestamp}] Trả lại KQ: ${reason}`;
+        const currentNote = task?.admin_note || '';
+        await updateStatus('Đang làm', { admin_note: currentNote + noteAppend }, { type: 'result_rejected', rejectReason: reason });
+      },
+    });
+  }, [task, updateStatus, closeDialog]);
 
-  const handleBackToDraft = useCallback(async () => {
+  const handleBackToDraft = useCallback(() => {
     if (!task) return;
-    if (!window.confirm('Đưa về Bản nháp sẽ xóa trạng thái hoàn thành. Tiếp tục?')) return;
-    await updateStatus('Bản nháp', { completed_at: null });
-  }, [task, updateStatus]);
+    setDialog({
+      open: true, title: 'Về Bản nháp', message: 'Đưa về Bản nháp sẽ xóa trạng thái hoàn thành. Tiếp tục?',
+      confirmLabel: 'Về nháp', variant: 'default', promptMode: false, promptPlaceholder: '',
+      onConfirm: async () => { closeDialog(); await updateStatus('Bản nháp', { completed_at: null }); },
+    });
+  }, [task, updateStatus, closeDialog]);
 
-  const handleDeleteTask = useCallback(async () => {
+  const handleDeleteTask = useCallback(() => {
     if (!task) return;
     const warning = deleteRequiresWarning(task.status)
-      ? `Task "${task.title}" đang được thực hiện. Xóa sẽ mất toàn bộ dữ liệu (checklist, kết quả, bình luận). KHÔNG THỂ HOÀN TÁC!\n\nBạn chắc chắn muốn xóa?`
+      ? `Task "${task.title}" đang được thực hiện. Xóa sẽ mất toàn bộ dữ liệu (checklist, kết quả, bình luận). KHÔNG THỂ HOÀN TÁC!`
       : `Xóa task "${task.title}"? Hành động này không thể hoàn tác.`;
-    if (!window.confirm(warning)) return;
+    setDialog({
+      open: true, title: 'Xóa task', message: warning,
+      confirmLabel: 'Xóa', variant: 'danger', promptMode: false, promptPlaceholder: '',
+      onConfirm: async () => {
+        closeDialog();
+        setUpdating(true);
+        try {
+          const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
+          const result = await res.json();
+          if (!res.ok) {
+            show(result.error || 'Lỗi xóa task', 'error');
+          } else {
+            show('Đã xóa task.', 'success');
+            onRefresh();
+            onClose();
+          }
+        } catch {
+          show('Lỗi hệ thống', 'error');
+        }
+        setUpdating(false);
+      },
+    });
+  }, [task, show, onRefresh, onClose, closeDialog]);
 
-    setUpdating(true);
-    try {
-      const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
-      const result = await res.json();
-      if (!res.ok) {
-        show(result.error || 'Lỗi xóa task', 'error');
-      } else {
-        show('Đã xóa task.', 'success');
-        onRefresh();
-        onClose();
-      }
-    } catch {
-      show('Lỗi hệ thống', 'error');
-    }
-    setUpdating(false);
-  }, [task, show, onRefresh, onClose]);
-
-  const handleArchiveTask = useCallback(async () => {
+  const handleArchiveTask = useCallback(() => {
     if (!task) return;
-    if (!window.confirm(`Lưu trữ task "${task.title}"? Task sẽ bị ẩn khỏi danh sách nhưng có thể khôi phục.`)) return;
-
-    setUpdating(true);
-    try {
-      const res = await fetch(`/api/tasks/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'archive' }),
-      });
-      const result = await res.json();
-      if (!res.ok) {
-        show(result.error || 'Lỗi lưu trữ', 'error');
-      } else {
-        show('Đã lưu trữ task.', 'success');
-        onRefresh();
-        onClose();
-      }
-    } catch {
-      show('Lỗi hệ thống', 'error');
-    }
-    setUpdating(false);
-  }, [task, show, onRefresh, onClose]);
+    setDialog({
+      open: true, title: 'Lưu trữ task', message: `Lưu trữ task "${task.title}"? Task sẽ bị ẩn khỏi danh sách nhưng có thể khôi phục.`,
+      confirmLabel: 'Lưu trữ', variant: 'default', promptMode: false, promptPlaceholder: '',
+      onConfirm: async () => {
+        closeDialog();
+        setUpdating(true);
+        try {
+          const res = await fetch(`/api/tasks/${task.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'archive' }),
+          });
+          const result = await res.json();
+          if (!res.ok) {
+            show(result.error || 'Lỗi lưu trữ', 'error');
+          } else {
+            show('Đã lưu trữ task.', 'success');
+            onRefresh();
+            onClose();
+          }
+        } catch {
+          show('Lỗi hệ thống', 'error');
+        }
+        setUpdating(false);
+      },
+    });
+  }, [task, show, onRefresh, onClose, closeDialog]);
 
   const handleRestoreTask = useCallback(async () => {
     if (!task) return;
@@ -602,6 +642,18 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={dialog.open}
+        title={dialog.title}
+        message={dialog.message}
+        confirmLabel={dialog.confirmLabel}
+        variant={dialog.variant}
+        promptMode={dialog.promptMode}
+        promptPlaceholder={dialog.promptPlaceholder}
+        onConfirm={dialog.onConfirm}
+        onCancel={closeDialog}
+      />
     </>
   );
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getTaskMonth } from '@/lib/utils';
+import ConfirmDialog from './ui/confirm-dialog';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
 import type { Profile, Task, TaskChecklist as TaskChecklistItem } from '@/lib/types';
@@ -22,6 +23,7 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
   const [adding, setAdding] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; itemId: string; title: string }>({ open: false, itemId: '', title: '' });
 
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
@@ -146,17 +148,8 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
     }
   }, [items, show, logActivity, onRefresh]);
 
-  const handleDelete = useCallback(async (itemId: string) => {
+  const executeDelete = useCallback(async (itemId: string) => {
     const item = items.find(i => i.id === itemId);
-
-    // Warning when deleting in Đang làm (uploads may exist)
-    if (task.status === 'Đang làm') {
-      const confirmed = window.confirm(
-        `Xóa "${item?.title}"?\n\nTask đang trong giai đoạn thực hiện — folder trên Google Drive (nếu có) sẽ KHÔNG bị xóa tự động. Bạn cần xóa thủ công trên Drive nếu cần.`
-      );
-      if (!confirmed) return;
-    }
-
     const supabase = createClient();
     const { error } = await supabase
       .from('task_checklists')
@@ -169,7 +162,16 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
       await logActivity('delete_checklist', `Xóa checklist: ${item?.title}`);
       onRefresh();
     }
-  }, [items, task.status, show, logActivity, onRefresh]);
+  }, [items, show, logActivity, onRefresh]);
+
+  const handleDelete = useCallback((itemId: string) => {
+    const item = items.find(i => i.id === itemId);
+    if (task.status === 'Đang làm') {
+      setDeleteConfirm({ open: true, itemId, title: item?.title || '' });
+    } else {
+      executeDelete(itemId);
+    }
+  }, [items, task.status, executeDelete]);
 
   // Inline edit title
   const startEditTitle = useCallback((item: TaskChecklistItem) => {
@@ -393,6 +395,16 @@ export default function TaskChecklist({ task, onRefresh }: TaskChecklistProps) {
       {totalCount === 0 && !canEditStructure && (
         <p className="text-sm text-gray-400 italic">Chưa có checklist.</p>
       )}
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        title="Xóa checklist"
+        message={`Xóa "${deleteConfirm.title}"?\n\nTask đang trong giai đoạn thực hiện — folder trên Google Drive (nếu có) sẽ KHÔNG bị xóa tự động. Bạn cần xóa thủ công trên Drive nếu cần.`}
+        confirmLabel="Xóa"
+        variant="danger"
+        onConfirm={() => { setDeleteConfirm({ open: false, itemId: '', title: '' }); executeDelete(deleteConfirm.itemId); }}
+        onCancel={() => setDeleteConfirm({ open: false, itemId: '', title: '' })}
+      />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
+import ConfirmDialog from './ui/confirm-dialog';
 import { getTaskMonth } from '@/lib/utils';
 import type { LinkLabel, Task, TaskChecklist, TaskMemberSubmission, TaskMemberSubmissionLink } from '@/lib/types';
 
@@ -60,6 +61,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
   const fileInputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
+  const [deleteSubmissionId, setDeleteSubmissionId] = useState<string | null>(null);
 
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
@@ -383,8 +385,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
     onRefresh();
   }, [submissionNote, checklistEntries, submissions, profile.id, task.id, show, fetchSubmissions, onRefresh]);
 
-  const handleDelete = useCallback(async (submissionId: string) => {
-    if (!window.confirm('Xóa báo cáo kết quả? Checklist liên quan sẽ được đánh dấu chưa hoàn thành.')) return;
+  const executeDeleteSubmission = useCallback(async (submissionId: string) => {
     const supabase = createClient();
 
     // Get links to find checklist items to un-tick
@@ -412,6 +413,10 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       onRefresh();
     }
   }, [profile.id, task.id, show, fetchSubmissions, onRefresh]);
+
+  const handleDelete = useCallback((submissionId: string) => {
+    setDeleteSubmissionId(submissionId);
+  }, []);
 
   const totalAssignees = assigneeCount;
   const submittedCount = submissions.length;
@@ -791,6 +796,16 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
           </p>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteSubmissionId}
+        title="Xóa báo cáo kết quả"
+        message="Xóa báo cáo kết quả? Checklist liên quan sẽ được đánh dấu chưa hoàn thành."
+        confirmLabel="Xóa"
+        variant="danger"
+        onConfirm={() => { if (deleteSubmissionId) executeDeleteSubmission(deleteSubmissionId); setDeleteSubmissionId(null); }}
+        onCancel={() => setDeleteSubmissionId(null)}
+      />
     </div>
   );
 }

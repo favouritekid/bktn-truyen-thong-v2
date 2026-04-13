@@ -6,6 +6,7 @@ import { formatDateVN } from '@/lib/utils';
 import { ROLE_LABELS } from '@/lib/constants';
 import { useProfile } from './profile-context';
 import { useToast } from './ui/toast';
+import ConfirmDialog from './ui/confirm-dialog';
 import type { Task, TaskComment, Profile } from '@/lib/types';
 
 interface TaskCommentsProps {
@@ -31,6 +32,7 @@ export default function TaskComments({ task, onRefresh }: TaskCommentsProps) {
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
+  const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
 
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isAssignee = task.assignees?.some(a => a.id === profile.id) ?? false;
@@ -110,8 +112,7 @@ export default function TaskComments({ task, onRefresh }: TaskCommentsProps) {
     setSending(false);
   }, [content, taskId, profile.id, show, logActivity, onRefresh]);
 
-  const handleDelete = useCallback(async (commentId: string) => {
-    if (!window.confirm('Xóa bình luận này?')) return;
+  const executeDeleteComment = useCallback(async (commentId: string) => {
     const supabase = createClient();
     const { error } = await supabase
       .from('task_comments')
@@ -125,6 +126,10 @@ export default function TaskComments({ task, onRefresh }: TaskCommentsProps) {
       onRefresh();
     }
   }, [show, logActivity, onRefresh]);
+
+  const handleDelete = useCallback((commentId: string) => {
+    setDeleteCommentId(commentId);
+  }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -217,6 +222,16 @@ export default function TaskComments({ task, onRefresh }: TaskCommentsProps) {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={!!deleteCommentId}
+        title="Xóa bình luận"
+        message="Xóa bình luận này?"
+        confirmLabel="Xóa"
+        variant="danger"
+        onConfirm={() => { if (deleteCommentId) executeDeleteComment(deleteCommentId); setDeleteCommentId(null); }}
+        onCancel={() => setDeleteCommentId(null)}
+      />
     </div>
   );
 }
