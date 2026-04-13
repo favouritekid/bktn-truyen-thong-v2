@@ -163,11 +163,16 @@ export async function POST(req: NextRequest) {
     }
 
     const mimeType = fileMimeType || 'application/octet-stream';
+    // Pass client origin so Google returns CORS headers on the upload URL
+    const clientOrigin = req.headers.get('origin') || req.headers.get('referer')?.replace(/\/[^/]*$/, '') || '';
     const initHeaders: Record<string, string> = {
       'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json; charset=UTF-8',
       'X-Upload-Content-Type': mimeType,
     };
+    if (clientOrigin) {
+      initHeaders['Origin'] = clientOrigin;
+    }
     if (fileSize) {
       initHeaders['X-Upload-Content-Length'] = String(fileSize);
     }
