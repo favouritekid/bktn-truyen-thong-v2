@@ -76,100 +76,98 @@ export async function POST(req: NextRequest) {
 
   try {
     const formData = await req.formData();
-    const files = formData.getAll('files') as File[];
-    const campaignName = (formData.get('campaignName') as string) || 'Không có chiến dịch';
-    const taskMonth = (formData.get('taskMonth') as string) || '';
-    const taskTitle = (formData.get('taskTitle') as string) || 'Untitled Task';
-    const uploaderName = (formData.get('uploaderName') as string) || 'Unknown';
-    const checklistTitle = (formData.get('checklistTitle') as string) || '';
+    const file = formData.get('file') as File | null;
+    const existingFolderId = formData.get('targetFolderId') as string | null;
 
-    if (files.length === 0) {
-      return NextResponse.json({ error: 'No files provided' }, { status: 400 });
+    if (!file || !(file instanceof File)) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // 50MB per file limit
-    const oversized = files.find(f => f.size > 50 * 1024 * 1024);
-    if (oversized) {
-      return NextResponse.json({ error: `File "${oversized.name}" quá lớn (tối đa 50MB)` }, { status: 400 });
+    if (file.size > 50 * 1024 * 1024) {
+      return NextResponse.json({ error: `File "${file.name}" quá lớn (tối đa 50MB)` }, { status: 400 });
     }
 
     const drive = getDriveClient();
+    let targetFolderId: string;
+    let folderUrl: string;
+    let version = 0;
 
-    // Build folder structure: Root > Campaign > Month > Task > Editor > [Checklist item] > version
-    const campaignFolderId = await getOrCreateFolder(drive, campaignName, rootFolderId);
-    const monthFolderId = taskMonth
-      ? await getOrCreateFolder(drive, taskMonth, campaignFolderId)
-      : campaignFolderId;
-    const taskFolderId = await getOrCreateFolder(drive, taskTitle, monthFolderId);
-    const editorFolderId = await getOrCreateFolder(drive, uploaderName, taskFolderId);
-    const checklistFolderId = checklistTitle
-      ? await getOrCreateFolder(drive, checklistTitle, editorFolderId)
-      : editorFolderId;
+    if (existingFolderId) {
+      // Subsequent file: upload directly to existing folder
+      targetFolderId = existingFolderId;
+      folderUrl = `https://drive.google.com/drive/folders/${targetFolderId}`;
+    } else {
+      // First file: create full folder structure
+      const campaignName = (formData.get('campaignName') as string) || 'Không có chiến dịch';
+      const taskMonth = (formData.get('taskMonth') as string) || '';
+      const taskTitle = (formData.get('taskTitle') as string) || 'Untitled Task';
+      const uploaderName = (formData.get('uploaderName') as string) || 'Unknown';
+      const checklistTitle = (formData.get('checklistTitle') as string) || '';
 
-    // Auto-version: count existing version folders, create next one
-    const { data: existingVersions } = await drive.files.list({
-      q: `'${checklistFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false and name contains 'v'`,
-      fields: 'files(name)',
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-      corpora: 'allDrives',
-    });
-    const versionNumbers = (existingVersions?.files || [])
-      .map(f => parseInt(f.name?.replace('v', '') || '0', 10))
-      .filter(n => !isNaN(n));
-    const nextVersion = versionNumbers.length > 0 ? Math.max(...versionNumbers) + 1 : 1;
-    const versionFolder = `v${nextVersion}`;
-    const targetFolderId = await getOrCreateFolder(drive, versionFolder, checklistFolderId);
+      // Build folder structure: Root > Campaign > Month > Task > Editor > [Checklist item] > version
+      const campaignFolderId = await getOrCreateFolder(drive, campaignName, rootFolderId);
+      const monthFolderId = taskMonth
+        ? await getOrCreateFolder(drive, taskMonth, campaignFolderId)
+        : campaignFolderId;
+      const taskFolderId = await getOrCreateFolder(drive, taskTitle, monthFolderId);
+      const editorFolderId = await getOrCreateFolder(drive, uploaderName, taskFolderId);
+      const checklistFolderId = checklistTitle
+        ? await getOrCreateFolder(drive, checklistTitle, editorFolderId)
+        : editorFolderId;
 
-    // Upload all files in parallel
-    const uploadedFiles = await Promise.all(
-      files.map(async (file) => {
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const stream = Readable.from(buffer);
+      // Auto-version: count existing version folders, create next one
+      const { data: existingVersions } = await drive.files.list({
+        q: `'${checklistFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false and name contains 'v'`,
+        fields: 'files(name)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        corpora: 'allDrives',
+      });
+      const versionNumbers = (existingVersions?.files || [])
+        .map(f => parseInt(f.name?.replace('v', '') || '0', 10))
+        .filter(n => !isNaN(n));
+      const nextVersion = versionNumbers.length > 0 ? Math.max(...versionNumbers) + 1 : 1;
+      version = nextVersion;
+      targetFolderId = await getOrCreateFolder(drive, `v${nextVersion}`, checklistFolderId);
+      folderUrl = `https://drive.google.com/drive/folders/${targetFolderId}`;
 
-        const driveResponse = await drive.files.create({
-          requestBody: {
-            name: file.name,
-            parents: [targetFolderId],
-          },
-          media: {
-            mimeType: file.type || 'application/octet-stream',
-            body: stream,
-          },
-          fields: 'id, name, webViewLink',
-          supportsAllDrives: true,
-        });
+      // Set folder permission so anyone with link can view
+      await drive.permissions.create({
+        fileId: targetFolderId,
+        requestBody: { role: 'reader', type: 'anyone' },
+        supportsAllDrives: true,
+      }).catch(() => {
+        // Shared Drive may restrict this - files inherit Drive permissions
+      });
+    }
 
-        return {
-          fileId: driveResponse.data.id,
-          fileName: driveResponse.data.name,
-          url: driveResponse.data.webViewLink,
-        };
-      })
-    );
+    // Upload the single file
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const stream = Readable.from(buffer);
 
-    // Set folder permission so anyone with link can view
-    // (Shared Drive may already handle this, but set on folder to be safe)
-    await drive.permissions.create({
-      fileId: targetFolderId,
+    const driveResponse = await drive.files.create({
       requestBody: {
-        role: 'reader',
-        type: 'anyone',
+        name: file.name,
+        parents: [targetFolderId],
       },
+      media: {
+        mimeType: file.type || 'application/octet-stream',
+        body: stream,
+      },
+      fields: 'id, name, webViewLink',
       supportsAllDrives: true,
-    }).catch(() => {
-      // Shared Drive may restrict this - files inherit Drive permissions
     });
-
-    // Return folder link + individual file info
-    const folderUrl = `https://drive.google.com/drive/folders/${targetFolderId}`;
 
     return NextResponse.json({
+      targetFolderId,
       folderUrl,
-      version: nextVersion,
-      fileCount: uploadedFiles.length,
-      files: uploadedFiles,
+      version,
+      file: {
+        fileId: driveResponse.data.id,
+        fileName: driveResponse.data.name,
+        url: driveResponse.data.webViewLink,
+      },
     });
   } catch (err: unknown) {
     console.error('Google Drive upload error:', err);

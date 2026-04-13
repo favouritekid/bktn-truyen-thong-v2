@@ -185,36 +185,51 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         return;
       }
 
-      // Determine version: count existing submission to figure out version
-      const existingSub = submissions.find(s => s.user_id === profile.id);
-      const version = existingSub ? (existingSub.links?.length ? 'update' : 'v1') : 'v1';
+      const fileArray = Array.from(files);
+      let targetFolderId: string | null = null;
+      let folderUrl = '';
+      let version = 0;
 
-      const formData = new FormData();
-      Array.from(files).forEach(f => formData.append('files', f));
-      formData.append('campaignName', task.campaign?.name || 'Không có chiến dịch');
-      formData.append('taskMonth', getTaskMonth(task.deadline));
-      formData.append('taskTitle', task.title);
-      formData.append('uploaderName', profile.full_name);
-      formData.append('checklistTitle', checklistEntries[idx]?.title || '');
-      formData.append('version', version);
+      for (let i = 0; i < fileArray.length; i++) {
+        const formData = new FormData();
+        formData.append('file', fileArray[i]);
 
-      const res = await fetch('/api/upload-drive', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: formData,
-      });
+        if (targetFolderId) {
+          // Subsequent files: just send targetFolderId
+          formData.append('targetFolderId', targetFolderId);
+        } else {
+          // First file: send all metadata to create folder structure
+          formData.append('campaignName', task.campaign?.name || 'Không có chiến dịch');
+          formData.append('taskMonth', getTaskMonth(task.deadline));
+          formData.append('taskTitle', task.title);
+          formData.append('uploaderName', profile.full_name);
+          formData.append('checklistTitle', checklistEntries[idx]?.title || '');
+        }
 
-      const result = await res.json();
-      if (!res.ok) {
-        show(result.error || 'Upload thất bại', 'error');
-        return;
+        const res = await fetch('/api/upload-drive', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: formData,
+        });
+
+        const result = await res.json();
+        if (!res.ok) {
+          show(result.error || `Upload file ${i + 1}/${fileArray.length} thất bại`, 'error');
+          return;
+        }
+
+        if (!targetFolderId) {
+          targetFolderId = result.targetFolderId;
+          folderUrl = result.folderUrl;
+          version = result.version;
+        }
       }
 
       // Auto-fill URL with folder link and mark as uploaded
       setChecklistEntries(prev => prev.map((e, i) =>
-        i === idx ? { ...e, url: result.folderUrl, isUploaded: true } : e
+        i === idx ? { ...e, url: folderUrl, isUploaded: true } : e
       ));
-      show(`Đã upload ${result.fileCount} file lên Google Drive (v${result.version})`, 'success');
+      show(`Đã upload ${fileArray.length} file lên Google Drive (v${version})`, 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Lỗi upload file';
       show(`Lỗi upload: ${msg}`, 'error');
@@ -224,7 +239,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       const input = fileInputRefs.current.get(idx);
       if (input) input.value = '';
     }
-  }, [show, task, profile.id, profile.full_name, checklistEntries, submissions]);
+  }, [show, task, profile.full_name, checklistEntries]);
 
   const handleSubmit = useCallback(async () => {
     // Validate: each checklist item must have a URL
