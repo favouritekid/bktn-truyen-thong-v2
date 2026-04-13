@@ -215,8 +215,10 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         i === idx ? { ...e, url: result.folderUrl, isUploaded: true } : e
       ));
       show(`Đã upload ${result.fileCount} file lên Google Drive (v${result.version})`, 'success');
-    } catch {
-      show('Lỗi upload file', 'error');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Lỗi upload file';
+      show(`Lỗi upload: ${msg}`, 'error');
+      console.error('Upload error:', err);
     } finally {
       setUploadingIdx(null);
       const input = fileInputRefs.current.get(idx);

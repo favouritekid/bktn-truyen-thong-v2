@@ -3,6 +3,8 @@ import { google, type drive_v3 } from 'googleapis';
 import { Readable } from 'stream';
 import { createClient } from '@supabase/supabase-js';
 
+export const maxDuration = 60;
+
 const SCOPES = ['https://www.googleapis.com/auth/drive'];
 
 function getDriveClient() {

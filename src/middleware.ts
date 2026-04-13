@@ -6,5 +6,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/zalo-webhook|api/notifications/zalo|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/zalo-webhook|api/notifications/zalo|api/upload-drive|api/rename-drive-folder|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 };
