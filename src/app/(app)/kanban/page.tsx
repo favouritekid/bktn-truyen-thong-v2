@@ -19,11 +19,46 @@ export default function KanbanPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { channels: dbChannels } = useChannels();
-  const [channelFilter, setChannelFilter] = useState('');
-  const [assigneeFilter, setAssigneeFilter] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showPublished, setShowPublished] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+
+  // Read filters from URL
+  const channelFilter = searchParams.get('channel') || '';
+  const assigneeFilter = searchParams.get('assignee') || '';
+  const urlSearchQuery = searchParams.get('q') || '';
+  const showPublished = searchParams.get('published') === '1';
+  const showArchived = searchParams.get('archived') === '1';
+
+  // Local search input with debounce to URL
+  const [searchInput, setSearchInput] = useState(urlSearchQuery);
+  const searchQuery = urlSearchQuery;
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  // Sync search input when URL changes externally (back/forward)
+  useEffect(() => { setSearchInput(urlSearchQuery); }, [urlSearchQuery]);
+
+  const updateFilter = useCallback((key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) params.set(key, value);
+    else params.delete(key);
+    // Keep task param if present
+    router.replace(`/kanban?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
+
+  const setChannelFilter = useCallback((v: string) => updateFilter('channel', v), [updateFilter]);
+  const setAssigneeFilter = useCallback((v: string) => updateFilter('assignee', v), [updateFilter]);
+  const setShowPublished = useCallback((v: boolean) => updateFilter('published', v ? '1' : ''), [updateFilter]);
+  const setShowArchived = useCallback((v: boolean) => updateFilter('archived', v ? '1' : ''), [updateFilter]);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => updateFilter('q', value.trim()), 300);
+  }, [updateFilter]);
+
+  const clearSearch = useCallback(() => {
+    setSearchInput('');
+    updateFilter('q', '');
+  }, [updateFilter]);
+
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [formTask, setFormTask] = useState<Task | null | undefined>(undefined);
   const [allEditors, setAllEditors] = useState<Profile[]>([]);
@@ -165,14 +200,14 @@ export default function KanbanPage() {
           </svg>
           <input
             type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            value={searchInput}
+            onChange={e => handleSearchChange(e.target.value)}
             placeholder="Tìm task..."
             className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-gray-700 placeholder-gray-400"
           />
-          {searchQuery && (
+          {searchInput && (
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={clearSearch}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
