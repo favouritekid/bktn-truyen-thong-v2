@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { STATUS_COLORS } from '@/lib/constants';
 import { formatDateVN } from '@/lib/utils';
 import { useProfile } from '@/components/profile-context';
@@ -117,6 +117,23 @@ export default function CalendarPage() {
   }, []);
   const closeForm = useCallback(() => setFormTask(undefined), []);
 
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(false);
+  const [selectedDayIdx, setSelectedDayIdx] = useState(0);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // Default selected day to today's index in the week
+  useEffect(() => {
+    const todayIdx = weekDays.findIndex(d => isSameDay(d, today));
+    if (todayIdx >= 0) setSelectedDayIdx(todayIdx);
+  }, [weekDays, today]);
+
   // Week label
   const weekLabel = `${formatShortDate(weekDays[0])} - ${formatShortDate(weekDays[6])}/${weekDays[6].getFullYear()}`;
 
@@ -150,21 +167,96 @@ export default function CalendarPage() {
       <p className="text-sm text-gray-500 mb-3">{weekLabel}</p>
 
       {loading ? (
-        <div className="grid grid-cols-7 gap-2">
-          {Array.from({ length: 7 }).map((_, i) => (
+        <div className={`grid gap-2 ${isMobile ? 'grid-cols-1' : 'grid-cols-7'}`}>
+          {Array.from({ length: isMobile ? 3 : 7 }).map((_, i) => (
             <div key={i} className="space-y-1">
               <div className="text-center py-1.5">
                 <div className="h-3 w-6 mx-auto bg-gray-200 rounded animate-pulse mb-1" />
                 <div className="h-4 w-8 mx-auto bg-gray-200 rounded animate-pulse" />
               </div>
-              <div className="bg-gray-50 rounded-lg min-h-[200px] p-2 space-y-2">
-                {i % 2 === 0 && <div className="h-12 w-full bg-gray-200 rounded animate-pulse" />}
-                {i % 3 === 0 && <div className="h-12 w-full bg-gray-200 rounded animate-pulse" />}
+              <div className="bg-gray-50 rounded-lg min-h-[120px] p-2 space-y-2">
+                <div className="h-12 w-full bg-gray-200 rounded animate-pulse" />
+                {!isMobile && i % 2 === 0 && <div className="h-12 w-full bg-gray-200 rounded animate-pulse" />}
               </div>
             </div>
           ))}
         </div>
+      ) : isMobile ? (
+        /* ===== MOBILE: Day picker + single day view ===== */
+        <div>
+          {/* Day picker strip */}
+          <div className="flex gap-1 mb-3 overflow-x-auto pb-1">
+            {weekDays.map((day, i) => {
+              const isToday = isSameDay(day, today);
+              const dayOfWeek = day.getDay();
+              const dayKey = day.toISOString().split('T')[0];
+              const count = (tasksByDay[dayKey] || []).length;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelectedDayIdx(i)}
+                  className={`flex-1 min-w-[48px] py-2 rounded-lg text-center transition-colors ${
+                    selectedDayIdx === i
+                      ? isToday ? 'bg-blue-600 text-white' : 'bg-gray-900 text-white'
+                      : isToday ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <div className="text-[10px] font-medium">{DAY_NAMES[dayOfWeek]}</div>
+                  <div className="text-sm font-bold">{day.getDate()}</div>
+                  {count > 0 && (
+                    <div className={`w-1.5 h-1.5 rounded-full mx-auto mt-0.5 ${selectedDayIdx === i ? 'bg-white/70' : 'bg-blue-400'}`} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Selected day tasks */}
+          {(() => {
+            const day = weekDays[selectedDayIdx];
+            const dayKey = day.toISOString().split('T')[0];
+            const dayTasks = tasksByDay[dayKey] || [];
+            return (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500 font-medium">
+                  {DAY_NAMES[day.getDay()]} {formatShortDate(day)} — {dayTasks.length} task
+                </p>
+                {dayTasks.length === 0 ? (
+                  <div className="text-center py-12">
+                    <svg className="w-8 h-8 mx-auto text-gray-200 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                    <p className="text-sm text-gray-400">Không có task nào</p>
+                  </div>
+                ) : (
+                  dayTasks.map(task => {
+                    const statusColor = STATUS_COLORS[task.status] || '#9E9E9E';
+                    return (
+                      <button
+                        key={task.id}
+                        onClick={() => openDrawer(task)}
+                        className="w-full text-left rounded-lg px-3 py-3 hover:opacity-80 transition-opacity border-l-4"
+                        style={{
+                          backgroundColor: statusColor + '10',
+                          borderLeftColor: statusColor,
+                        }}
+                      >
+                        <div className="text-sm font-medium text-gray-800">{task.title}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: statusColor }} />
+                          <span className="text-xs text-gray-500">{task.status}</span>
+                          {task.deadline && (
+                            <span className="text-xs text-gray-400 ml-auto">{formatDateVN(new Date(task.deadline))}</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            );
+          })()}
+        </div>
       ) : (
+        /* ===== DESKTOP: 7-column grid ===== */
         <div className="grid grid-cols-7 gap-2">
           {/* Day headers */}
           {weekDays.map((day, i) => {
