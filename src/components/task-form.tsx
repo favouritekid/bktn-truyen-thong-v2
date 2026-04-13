@@ -40,6 +40,29 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
     : task.status === 'Bản nháp'
   );
 
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validateField = useCallback((field: string, value: unknown): string => {
+    switch (field) {
+      case 'title': return !(value as string)?.trim() ? 'Vui lòng nhập tiêu đề.' : '';
+      case 'campaignId': return !value ? 'Vui lòng chọn chiến dịch.' : '';
+      case 'channels': return (value as string[]).length === 0 ? 'Vui lòng chọn ít nhất 1 kênh.' : '';
+      case 'deadline': {
+        if (!value) return 'Vui lòng chọn deadline.';
+        if (!isEditing && new Date(value as string) < new Date()) return 'Thời hạn không được ở quá khứ.';
+        return '';
+      }
+      case 'assignees': return (value as string[]).length === 0 ? 'Vui lòng chọn ít nhất một người phụ trách.' : '';
+      default: return '';
+    }
+  }, [isEditing]);
+
+  const handleBlur = useCallback((field: string, value: unknown) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    setErrors(prev => ({ ...prev, [field]: validateField(field, value) }));
+  }, [validateField]);
+
   const [title, setTitle] = useState('');
   const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([]);
   const [contentType, setContentType] = useState<string>(CONTENT_TYPES[0]);
@@ -149,15 +172,23 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!title.trim()) { show('Vui lòng nhập tiêu đề.', 'error'); return; }
-    if (selectedChannelIds.length === 0) { show('Vui lòng chọn ít nhất 1 kênh.', 'error'); return; }
-    if (!campaignId) { show('Vui lòng chọn chiến dịch.', 'error'); return; }
-    if (!deadline) { show('Vui lòng chọn deadline.', 'error'); return; }
-    if (!isEditing && new Date(deadline) < new Date()) {
-      show('Thời hạn không được ở quá khứ.', 'error');
+    // Mark all fields as touched and validate
+    const allFields = { title, campaignId, channels: selectedChannelIds, deadline, assignees: selectedAssignees };
+    const allTouched: Record<string, boolean> = {};
+    const allErrors: Record<string, string> = {};
+    let hasError = false;
+    for (const [field, value] of Object.entries(allFields)) {
+      allTouched[field] = true;
+      const err = validateField(field, value);
+      if (err) { allErrors[field] = err; hasError = true; }
+    }
+    setTouched(allTouched);
+    setErrors(allErrors);
+    if (hasError) {
+      const firstError = Object.values(allErrors).find(Boolean);
+      if (firstError) show(firstError, 'error');
       return;
     }
-    if (selectedAssignees.length === 0) { show('Vui lòng chọn ít nhất một người phụ trách.', 'error'); return; }
 
     setSaving(true);
     const supabase = createClient();
@@ -341,10 +372,12 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
+                onBlur={() => handleBlur('title', title)}
                 disabled={fieldsLocked}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500 ${touched.title && errors.title ? 'border-red-300' : 'border-gray-300'}`}
                 placeholder="Nhập tiêu đề..."
               />
+              {touched.title && errors.title && <p className="text-xs text-red-500 mt-1">{errors.title}</p>}
             </div>
 
             {/* Campaign */}
@@ -355,14 +388,16 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
               <select
                 value={campaignId}
                 onChange={e => handleCampaignChange(e.target.value)}
+                onBlur={() => handleBlur('campaignId', campaignId)}
                 disabled={fieldsLocked}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${touched.campaignId && errors.campaignId ? 'border-red-300' : 'border-gray-300'}`}
               >
                 <option value="">-- Chọn chiến dịch --</option>
                 {campaigns.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+              {touched.campaignId && errors.campaignId && <p className="text-xs text-red-500 mt-1">{errors.campaignId}</p>}
             </div>
 
             {/* Channel (multi-select) */}
@@ -400,6 +435,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
               {selectedChannelIds.length > 0 && (
                 <p className="text-xs text-gray-500 mt-1">Đã chọn: {selectedChannelIds.length} kênh</p>
               )}
+              {touched.channels && errors.channels && <p className="text-xs text-red-500 mt-1">{errors.channels}</p>}
             </div>
 
             {/* Content Type */}
@@ -442,9 +478,11 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
                   type="datetime-local"
                   value={deadline}
                   onChange={e => setDeadline(e.target.value)}
+                  onBlur={() => handleBlur('deadline', deadline)}
                   disabled={fieldsLocked}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${touched.deadline && errors.deadline ? 'border-red-300' : 'border-gray-300'}`}
                 />
+                {touched.deadline && errors.deadline && <p className="text-xs text-red-500 mt-1">{errors.deadline}</p>}
               </div>
             </div>
 
@@ -495,6 +533,7 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
                   Đã chọn: {selectedAssignees.length} người
                 </p>
               )}
+              {touched.assignees && errors.assignees && <p className="text-xs text-red-500 mt-1">{errors.assignees}</p>}
             </div>
 
             {/* Admin Note */}
