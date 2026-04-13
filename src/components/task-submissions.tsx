@@ -186,6 +186,15 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       }
 
       const fileArray = Array.from(files);
+
+      // Client-side file size check (Vercel limits request body to 4.5MB)
+      const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB (leave room for FormData overhead)
+      const oversized = fileArray.find(f => f.size > MAX_FILE_SIZE);
+      if (oversized) {
+        show(`File "${oversized.name}" quá lớn (${(oversized.size / 1024 / 1024).toFixed(1)}MB). Tối đa 4MB/file.`, 'error');
+        return;
+      }
+
       let targetFolderId: string | null = null;
       let folderUrl = '';
       let version = 0;
@@ -195,10 +204,8 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
         formData.append('file', fileArray[i]);
 
         if (targetFolderId) {
-          // Subsequent files: just send targetFolderId
           formData.append('targetFolderId', targetFolderId);
         } else {
-          // First file: send all metadata to create folder structure
           formData.append('campaignName', task.campaign?.name || 'Không có chiến dịch');
           formData.append('taskMonth', getTaskMonth(task.deadline));
           formData.append('taskTitle', task.title);
@@ -212,11 +219,21 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
           body: formData,
         });
 
-        const result = await res.json();
         if (!res.ok) {
-          show(result.error || `Upload file ${i + 1}/${fileArray.length} thất bại`, 'error');
+          let errorMsg = `Upload file "${fileArray[i].name}" thất bại`;
+          try {
+            const errData = await res.json();
+            errorMsg = errData.error || errorMsg;
+          } catch {
+            if (res.status === 413) {
+              errorMsg = `File "${fileArray[i].name}" quá lớn để upload (tối đa 4MB/file)`;
+            }
+          }
+          show(errorMsg, 'error');
           return;
         }
+
+        const result = await res.json();
 
         if (!targetFolderId) {
           targetFolderId = result.targetFolderId;
@@ -515,7 +532,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
                       <p className="text-xs text-gray-500">
                         <span className="text-blue-600 font-medium">Nhấn để chọn</span> hoặc kéo thả file vào đây
                       </p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">Hỗ trợ nhiều file, tối đa 50MB/file</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Hỗ trợ nhiều file, tối đa 4MB/file</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-px bg-gray-200" />
