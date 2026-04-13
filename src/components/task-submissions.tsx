@@ -229,6 +229,16 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       setChecklistEntries(prev => prev.map((e, i) =>
         i === idx ? { ...e, url: folderUrl, isUploaded: true } : e
       ));
+
+      // Auto-check the checklist item as done
+      const checklistItemId = checklistEntries[idx]?.checklistItemId;
+      if (checklistItemId) {
+        await supabase.from('task_checklists')
+          .update({ is_checked: true })
+          .eq('id', checklistItemId);
+        onRefresh();
+      }
+
       show(`Đã upload ${fileArray.length} file lên Google Drive (v${version})`, 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Lỗi upload file';
@@ -239,7 +249,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       const input = fileInputRefs.current.get(idx);
       if (input) input.value = '';
     }
-  }, [show, task, profile.full_name, checklistEntries]);
+  }, [show, task, profile.full_name, checklistEntries, onRefresh]);
 
   const handleSubmit = useCallback(async () => {
     // Validate: each checklist item must have a URL
