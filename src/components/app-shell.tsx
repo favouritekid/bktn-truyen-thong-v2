@@ -51,6 +51,15 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -128,6 +137,15 @@ function ZaloLinkModal({ open, onClose, profileId }: { open: boolean; onClose: (
   const { show } = useToast();
   const [status, setStatus] = useState<'loading' | 'linked' | 'not_linked'>('loading');
   const [displayName, setDisplayName] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
 
   const checkLink = useCallback(async () => {
     setStatus('loading');

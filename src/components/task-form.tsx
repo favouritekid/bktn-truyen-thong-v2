@@ -20,6 +20,18 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isEditing = !!task;
 
+  // Close form on Escape key (stopPropagation to prevent also closing drawer underneath)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [onClose]);
+
   // Lock fields: Admin can edit in Bản nháp, Chờ duyệt KH, Đã duyệt, Đang làm
   // Editor can only edit in Bản nháp (and only gets "Sửa" button there)
   const adminEditableStatuses = ['Bản nháp', 'Chờ duyệt KH', 'Đã duyệt', 'Đang làm'];

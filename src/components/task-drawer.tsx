@@ -27,6 +27,16 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [allChecklistDone, setAllChecklistDone] = useState(false);
 
+  // Close drawer on Escape key
+  useEffect(() => {
+    if (!task) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [task, onClose]);
+
   const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
   const isEditor = profile.role === 'editor';
 
