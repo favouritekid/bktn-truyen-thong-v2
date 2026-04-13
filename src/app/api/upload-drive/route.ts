@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google, type drive_v3 } from 'googleapis';
-import { Readable } from 'stream';
 import { createClient } from '@supabase/supabase-js';
 
 export const maxDuration = 60;
 
 const SCOPES = ['https://www.googleapis.com/auth/drive'];
 
-function getDriveClient() {
+function getAuthAndDrive() {
   const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}');
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: SCOPES,
   });
-  return google.drive({ version: 'v3', auth });
+  const drive = google.drive({ version: 'v3', auth });
+  return { auth, drive };
 }
 
 /**
@@ -51,6 +51,11 @@ async function getOrCreateFolder(
   return folder.data.id!;
 }
 
+/**
+ * Accepts JSON metadata, creates folder structure on Google Drive,
+ * initiates a resumable upload session, and returns the upload URL.
+ * The client then uploads the file directly to Google Drive.
+ */
 export async function POST(req: NextRequest) {
   // Verify user is authenticated via Supabase
   const authHeader = req.headers.get('authorization');
@@ -75,36 +80,44 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const formData = await req.formData();
-    const file = formData.get('file') as File | null;
-    const existingFolderId = formData.get('targetFolderId') as string | null;
+    const body = await req.json();
+    const {
+      fileName,
+      fileSize,
+      fileMimeType,
+      campaignName = 'Không có chiến dịch',
+      taskMonth = '',
+      taskTitle = 'Untitled Task',
+      uploaderName = 'Unknown',
+      checklistTitle = '',
+      targetFolderId: existingFolderId,
+    } = body as {
+      fileName: string;
+      fileSize?: number;
+      fileMimeType?: string;
+      campaignName?: string;
+      taskMonth?: string;
+      taskTitle?: string;
+      uploaderName?: string;
+      checklistTitle?: string;
+      targetFolderId?: string;
+    };
 
-    if (!file || !(file instanceof File)) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    if (!fileName) {
+      return NextResponse.json({ error: 'fileName is required' }, { status: 400 });
     }
 
-    if (file.size > 50 * 1024 * 1024) {
-      return NextResponse.json({ error: `File "${file.name}" quá lớn (tối đa 50MB)` }, { status: 400 });
-    }
-
-    const drive = getDriveClient();
+    const { auth, drive } = getAuthAndDrive();
     let targetFolderId: string;
     let folderUrl: string;
     let version = 0;
 
     if (existingFolderId) {
-      // Subsequent file: upload directly to existing folder
+      // Subsequent file: reuse existing folder
       targetFolderId = existingFolderId;
       folderUrl = `https://drive.google.com/drive/folders/${targetFolderId}`;
     } else {
       // First file: create full folder structure
-      const campaignName = (formData.get('campaignName') as string) || 'Không có chiến dịch';
-      const taskMonth = (formData.get('taskMonth') as string) || '';
-      const taskTitle = (formData.get('taskTitle') as string) || 'Untitled Task';
-      const uploaderName = (formData.get('uploaderName') as string) || 'Unknown';
-      const checklistTitle = (formData.get('checklistTitle') as string) || '';
-
-      // Build folder structure: Root > Campaign > Month > Task > Editor > [Checklist item] > version
       const campaignFolderId = await getOrCreateFolder(drive, campaignName, rootFolderId);
       const monthFolderId = taskMonth
         ? await getOrCreateFolder(drive, taskMonth, campaignFolderId)
@@ -141,36 +154,55 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Upload the single file
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const stream = Readable.from(buffer);
+    // Initiate resumable upload session with Google Drive
+    const authClient = await auth.getClient();
+    const tokenResponse = await authClient.getAccessToken();
+    const accessToken = tokenResponse?.token;
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Failed to get Google access token' }, { status: 500 });
+    }
 
-    const driveResponse = await drive.files.create({
-      requestBody: {
-        name: file.name,
-        parents: [targetFolderId],
+    const mimeType = fileMimeType || 'application/octet-stream';
+    const initHeaders: Record<string, string> = {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json; charset=UTF-8',
+      'X-Upload-Content-Type': mimeType,
+    };
+    if (fileSize) {
+      initHeaders['X-Upload-Content-Length'] = String(fileSize);
+    }
+
+    const initResponse = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
+      {
+        method: 'POST',
+        headers: initHeaders,
+        body: JSON.stringify({
+          name: fileName,
+          parents: [targetFolderId],
+        }),
       },
-      media: {
-        mimeType: file.type || 'application/octet-stream',
-        body: stream,
-      },
-      fields: 'id, name, webViewLink',
-      supportsAllDrives: true,
-    });
+    );
+
+    if (!initResponse.ok) {
+      const errorText = await initResponse.text();
+      console.error('Resumable upload init error:', errorText);
+      return NextResponse.json({ error: 'Failed to initiate upload session' }, { status: 500 });
+    }
+
+    const uploadUrl = initResponse.headers.get('Location');
+    if (!uploadUrl) {
+      return NextResponse.json({ error: 'No upload URL returned from Google Drive' }, { status: 500 });
+    }
 
     return NextResponse.json({
+      uploadUrl,
       targetFolderId,
       folderUrl,
       version,
-      file: {
-        fileId: driveResponse.data.id,
-        fileName: driveResponse.data.name,
-        url: driveResponse.data.webViewLink,
-      },
     });
   } catch (err: unknown) {
-    console.error('Google Drive upload error:', err);
+    console.error('Upload init error:', err);
     const message = err instanceof Error ? err.message : 'Upload failed';
     return NextResponse.json({ error: message }, { status: 500 });
   }

@@ -187,11 +187,11 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
 
       const fileArray = Array.from(files);
 
-      // Client-side file size check (Vercel limits request body to 4.5MB)
-      const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB (leave room for FormData overhead)
+      // 50MB per file limit
+      const MAX_FILE_SIZE = 50 * 1024 * 1024;
       const oversized = fileArray.find(f => f.size > MAX_FILE_SIZE);
       if (oversized) {
-        show(`File "${oversized.name}" quá lớn (${(oversized.size / 1024 / 1024).toFixed(1)}MB). Tối đa 4MB/file.`, 'error');
+        show(`File "${oversized.name}" quá lớn (${(oversized.size / 1024 / 1024).toFixed(1)}MB). Tối đa 50MB/file.`, 'error');
         return;
       }
 
@@ -200,45 +200,62 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
       let version = 0;
 
       for (let i = 0; i < fileArray.length; i++) {
-        const formData = new FormData();
-        formData.append('file', fileArray[i]);
+        const file = fileArray[i];
+
+        // Step 1: Get resumable upload URL from our API (metadata only)
+        const initBody: Record<string, string> = {
+          fileName: file.name,
+          fileSize: String(file.size),
+          fileMimeType: file.type || 'application/octet-stream',
+        };
 
         if (targetFolderId) {
-          formData.append('targetFolderId', targetFolderId);
+          initBody.targetFolderId = targetFolderId;
         } else {
-          formData.append('campaignName', task.campaign?.name || 'Không có chiến dịch');
-          formData.append('taskMonth', getTaskMonth(task.deadline));
-          formData.append('taskTitle', task.title);
-          formData.append('uploaderName', profile.full_name);
-          formData.append('checklistTitle', checklistEntries[idx]?.title || '');
+          initBody.campaignName = task.campaign?.name || 'Không có chiến dịch';
+          initBody.taskMonth = getTaskMonth(task.deadline);
+          initBody.taskTitle = task.title;
+          initBody.uploaderName = profile.full_name;
+          initBody.checklistTitle = checklistEntries[idx]?.title || '';
         }
 
-        const res = await fetch('/api/upload-drive', {
+        const initRes = await fetch('/api/upload-drive', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${session.access_token}` },
-          body: formData,
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(initBody),
         });
 
-        if (!res.ok) {
-          let errorMsg = `Upload file "${fileArray[i].name}" thất bại`;
+        if (!initRes.ok) {
+          let errorMsg = `Khởi tạo upload thất bại cho "${file.name}"`;
           try {
-            const errData = await res.json();
+            const errData = await initRes.json();
             errorMsg = errData.error || errorMsg;
-          } catch {
-            if (res.status === 413) {
-              errorMsg = `File "${fileArray[i].name}" quá lớn để upload (tối đa 4MB/file)`;
-            }
-          }
+          } catch { /* non-JSON response */ }
           show(errorMsg, 'error');
           return;
         }
 
-        const result = await res.json();
+        const { uploadUrl, targetFolderId: folderId, folderUrl: fUrl, version: ver } = await initRes.json();
+
+        // Step 2: Upload file directly to Google Drive (bypasses Vercel)
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type || 'application/octet-stream' },
+          body: file,
+        });
+
+        if (!uploadRes.ok) {
+          show(`Upload file "${file.name}" lên Google Drive thất bại`, 'error');
+          return;
+        }
 
         if (!targetFolderId) {
-          targetFolderId = result.targetFolderId;
-          folderUrl = result.folderUrl;
-          version = result.version;
+          targetFolderId = folderId;
+          folderUrl = fUrl;
+          version = ver;
         }
       }
 
@@ -532,7 +549,7 @@ export default function TaskSubmissions({ task, onRefresh }: TaskSubmissionsProp
                       <p className="text-xs text-gray-500">
                         <span className="text-blue-600 font-medium">Nhấn để chọn</span> hoặc kéo thả file vào đây
                       </p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">Hỗ trợ nhiều file, tối đa 4MB/file</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Hỗ trợ nhiều file, tối đa 50MB/file</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-px bg-gray-200" />
