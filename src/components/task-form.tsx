@@ -141,6 +141,10 @@ export default function TaskForm({ task, onClose, onSaved }: TaskFormProps) {
     if (selectedChannelIds.length === 0) { show('Vui lòng chọn ít nhất 1 kênh.', 'error'); return; }
     if (!campaignId) { show('Vui lòng chọn chiến dịch.', 'error'); return; }
     if (!deadline) { show('Vui lòng chọn deadline.', 'error'); return; }
+    if (!isEditing && new Date(deadline) < new Date()) {
+      show('Thời hạn không được ở quá khứ.', 'error');
+      return;
+    }
     if (selectedAssignees.length === 0) { show('Vui lòng chọn ít nhất một người phụ trách.', 'error'); return; }
 
     setSaving(true);

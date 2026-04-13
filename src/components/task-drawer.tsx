@@ -139,6 +139,16 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
       show('Vui lòng điền đầy đủ thông tin (tiêu đề, kênh, deadline, người phụ trách) trước khi gửi duyệt.', 'error');
       return;
     }
+    // Require at least 1 checklist item
+    const supabase = createClient();
+    const { count } = await supabase
+      .from('task_checklists')
+      .select('*', { count: 'exact', head: true })
+      .eq('task_id', task.id);
+    if (!count || count === 0) {
+      show('Vui lòng thêm ít nhất 1 checklist trước khi gửi duyệt.', 'error');
+      return;
+    }
     await updateStatus('Chờ duyệt KH', undefined, { type: 'pending_content_approval' });
   }, [task, updateStatus, show]);
 
