@@ -224,8 +224,34 @@ export default function KanbanPage() {
 
       {/* Kanban board */}
       {loading ? (
-        <div className="flex-1 flex items-center justify-center text-gray-400">
-          <p className="text-sm">Đang tải...</p>
+        <div className="flex-1 flex gap-2.5 overflow-x-auto pb-2">
+          {Array.from({ length: 5 }).map((_, ci) => (
+            <div key={ci} className="flex-shrink-0 w-[280px] bg-gray-50 rounded-lg flex flex-col">
+              <div className="px-3 py-2.5 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-sm bg-gray-300 animate-pulse" />
+                <span className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+              </div>
+              <div className="px-1.5 pb-1.5 space-y-1.5">
+                {Array.from({ length: 3 - ci % 2 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-lg border border-gray-200 px-3 py-2.5 space-y-2">
+                    <div className="flex gap-1.5">
+                      <span className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
+                      <span className="h-4 w-12 bg-gray-200 rounded animate-pulse" />
+                    </div>
+                    <div className="h-4 w-full bg-gray-200 rounded animate-pulse" />
+                    <div className="h-3 w-2/3 bg-gray-100 rounded animate-pulse" />
+                    <div className="flex items-center justify-between">
+                      <span className="h-3 w-20 bg-gray-100 rounded animate-pulse" />
+                      <div className="flex -space-x-1.5">
+                        <span className="w-6 h-6 rounded-full bg-gray-200 animate-pulse" />
+                        <span className="w-6 h-6 rounded-full bg-gray-200 animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="flex-1 flex gap-2.5 overflow-x-auto pb-2">

@@ -302,6 +302,7 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
   // Render action buttons based on role + status
   const renderActions = () => {
     const buttons: React.ReactNode[] = [];
+    const spinner = updating ? <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg> : null;
     const btnPrimary = 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1 bg-gray-900 hover:bg-gray-800 text-white';
     const btnSecondary = 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1 border border-gray-200 hover:bg-gray-50 text-gray-700';
     const btnDanger = 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1 text-red-600 hover:bg-red-50 border border-gray-200';
@@ -310,11 +311,11 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
       if (task.status === 'Bản nháp') {
         buttons.push(
           <button key="edit" onClick={() => onEdit(task)} className={btnSecondary}>Sửa</button>,
-          <button key="send" onClick={handleSendApproval} disabled={updating} className={btnPrimary}>Gửi duyệt KH</button>
+          <button key="send" onClick={handleSendApproval} disabled={updating} className={btnPrimary}>{spinner}Gửi duyệt KH</button>
         );
       } else if (task.status === 'Đã duyệt') {
         buttons.push(
-          <button key="start" onClick={handleStartWork} disabled={updating} className={btnPrimary}>Bắt đầu thực hiện</button>
+          <button key="start" onClick={handleStartWork} disabled={updating} className={btnPrimary}>{spinner}Bắt đầu thực hiện</button>
         );
       } else if (task.status === 'Đang làm') {
         buttons.push(
@@ -322,7 +323,7 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
         );
         if (allChecklistDone) {
           buttons.push(
-            <button key="sendResult" onClick={handleSendResultApproval} disabled={updating} className={btnPrimary}>Gửi duyệt KQ</button>
+            <button key="sendResult" onClick={handleSendResultApproval} disabled={updating} className={btnPrimary}>{spinner}Gửi duyệt KQ</button>
           );
         } else {
           buttons.push(
@@ -344,17 +345,17 @@ export default function TaskDrawer({ task, onClose, onRefresh, onEdit }: TaskDra
 
       if (task.status === 'Bản nháp') {
         buttons.push(
-          <button key="send" onClick={handleSendApproval} disabled={updating} className={btnPrimary}>Gửi duyệt KH</button>
+          <button key="send" onClick={handleSendApproval} disabled={updating} className={btnPrimary}>{spinner}Gửi duyệt KH</button>
         );
       } else if (task.status === 'Chờ duyệt KH') {
         buttons.push(
           <button key="reject" onClick={handleRejectContent} disabled={updating} className={btnDanger}>Từ chối</button>,
-          <button key="approve" onClick={handleApproveContent} disabled={updating} className={btnPrimary}>Duyệt KH</button>
+          <button key="approve" onClick={handleApproveContent} disabled={updating} className={btnPrimary}>{spinner}Duyệt KH</button>
         );
       } else if (task.status === 'Chờ duyệt KQ') {
         buttons.push(
           <button key="return" onClick={handleRejectResult} disabled={updating} className={btnDanger}>Trả lại</button>,
-          <button key="approveResult" onClick={handleApproveResult} disabled={updating} className={btnPrimary}>Duyệt KQ</button>
+          <button key="approveResult" onClick={handleApproveResult} disabled={updating} className={btnPrimary}>{spinner}Duyệt KQ</button>
         );
       }
 

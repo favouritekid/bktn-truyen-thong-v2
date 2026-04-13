@@ -150,8 +150,19 @@ export default function CalendarPage() {
       <p className="text-sm text-gray-500 mb-3">{weekLabel}</p>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">
-          <p className="text-lg">Đang tải...</p>
+        <div className="grid grid-cols-7 gap-2">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="space-y-1">
+              <div className="text-center py-1.5">
+                <div className="h-3 w-6 mx-auto bg-gray-200 rounded animate-pulse mb-1" />
+                <div className="h-4 w-8 mx-auto bg-gray-200 rounded animate-pulse" />
+              </div>
+              <div className="bg-gray-50 rounded-lg min-h-[200px] p-2 space-y-2">
+                {i % 2 === 0 && <div className="h-12 w-full bg-gray-200 rounded animate-pulse" />}
+                {i % 3 === 0 && <div className="h-12 w-full bg-gray-200 rounded animate-pulse" />}
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-7 gap-2">
